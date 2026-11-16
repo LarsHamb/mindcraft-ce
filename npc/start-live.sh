@@ -11,7 +11,7 @@ docker run -d --name mindcraft-live-bot --restart unless-stopped --network karim
   -v /home/lars/fabric-test/config/karim-voice.json:/secrets/kv.json:ro \
   -v /home/lars/karim-bot/.auth:/auth \
   -v $L/bots-live:/app/bots \
-  -v $L/profiles:/app/lauf/profiles:ro -e HOME=/tmp \
+  -v $L/profiles:/app/lauf/profiles:ro -e HOME=/tmp -e EXIT_ON_AGENT_FAILURE=60 \
   -e SETTINGS_JSON="$(cat /home/lars/mindcraft-ce/npc/settings-live.json)" \
   mindcraft-ce26 sh -c "export GEMINI_API_KEY=\$(node -e \"console.log(JSON.parse(require(\\\"fs\\\").readFileSync(\\\"/secrets/kv.json\\\")).apiKey)\"); exec node main.js"
 echo "gestartet: docker logs -f mindcraft-live-bot"

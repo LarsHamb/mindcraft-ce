@@ -47,6 +47,13 @@ export class AgentProcess {
                 // agent must run for at least 10 seconds before restarting
                 if (Date.now() - last_restart < 10000) {
                     console.error(`Agent process exited too quickly and will not be restarted.`);
+                    // Unattended server bot: leave the whole process after a pause, so Docker's restart policy
+                    // brings it back (the pause avoids Mojang's 429 for logins in quick succession).
+                    const waitSeconds = Number(process.env.EXIT_ON_AGENT_FAILURE);
+                    if (Number.isFinite(waitSeconds) && waitSeconds >= 0) {
+                        console.error(`Exiting in ${waitSeconds} s so the container restarts.`);
+                        setTimeout(() => process.exit(1), waitSeconds * 1000);
+                    }
                     return;
                 }
                 console.log('Restarting agent...');
