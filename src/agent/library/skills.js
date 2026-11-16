@@ -333,8 +333,7 @@ export async function attackNearest(bot, mobType, kill=true) {
      * await skills.attackNearest(bot, "zombie", true);
      **/
     bot.modes.pause('cowardice');
-    if (mobType === 'drowned' || mobType === 'cod' || mobType === 'salmon' || mobType === 'tropical_fish' || mobType === 'squid')
-        bot.modes.pause('self_preservation'); // so it can go underwater. TODO: have an drowning mode so we don't turn off all self_preservation
+    // self_preservation stays on for water mobs: pausing it let the bot drown while chasing fish (17.11.)
     const mob = world.getNearbyEntities(bot, 24).find(entity => entity.name === mobType);
     if (mob) {
         return await attackEntity(bot, mob, kill);
@@ -967,10 +966,34 @@ export async function consume(bot, itemName="") {
         log(bot, `You do not have any ${name} to eat.`);
         return false;
     }
-    await bot.equip(item, 'hand');
-    await bot.consume();
-    log(bot, `Consumed ${item.name}.`);
-    return true;
+    // auto-eat and this tool used to cancel each other (26.3: "Promise timed out", 33 retries in one run):
+    // wait for a running auto-eat, keep it off while we eat, retry once, and judge by the food bar.
+    const autoEat = bot.autoEat;
+    for (let i = 0; i < 20 && autoEat?.isEating; i++) await new Promise(r => setTimeout(r, 250));
+    if (bot.food >= 20 && !/potion|milk|golden_apple|chorus/.test(item.name)) { log(bot, `Not hungry (food ${bot.food}/20).`); return true; }
+    const wasAuto = autoEat?.opts?.enabled ?? autoEat?.enabled ?? true;
+    try { autoEat?.disableAuto?.(); } catch {}
+    try {
+        const before = bot.food;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            const current = bot.inventory.findInventoryItem(item.name);
+            if (!current) break;
+            await bot.equip(current, 'hand');
+            try {
+                await bot.consume();
+                log(bot, `Consumed ${item.name} (food ${before} -> ${bot.food}).`);
+                return true;
+            } catch (error) {
+                if (/Food is full/i.test(error.message)) { log(bot, `Not hungry (food ${bot.food}/20).`); return true; }
+                if (bot.food > before) { log(bot, `Consumed ${item.name} (food ${before} -> ${bot.food}).`); return true; }
+                if (attempt === 2) { log(bot, `Could not eat ${item.name}: ${error.message}`); return false; }
+                await new Promise(r => setTimeout(r, 500));
+            }
+        }
+        return false;
+    } finally {
+        if (wasAuto) { try { autoEat?.enableAuto?.(); } catch {} }
+    }
 }
 
 
@@ -1475,7 +1498,7 @@ export async function stay(bot, seconds=30) {
      * @example
      * await skills.stay(bot);
      **/
-    bot.modes.pause('self_preservation');
+    // self_preservation stays on: standing still in water or fire must not be fatal
     bot.modes.pause('unstuck');
     bot.modes.pause('cowardice');
     bot.modes.pause('self_defense');
