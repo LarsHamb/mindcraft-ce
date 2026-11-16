@@ -285,5 +285,10 @@
         "type": "array",
         "default": [],
         "description": "Player bases the bot must not break or place blocks in: [{\"name\", \"x\", \"z\", \"radius\"}]."
+    },
+    "protection_admins": {
+        "type": "array",
+        "default": [],
+        "description": "Players who may remove any protected area set in chat."
     }
 }

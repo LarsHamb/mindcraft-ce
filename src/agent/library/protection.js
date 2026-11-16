@@ -49,8 +49,10 @@ function state(bot) {
     const dir = `./bots/${bot.username}`;
     const own = new Map(Object.entries(loadJson(`${dir}/own_blocks.json`, {})));
     const built = loadJson(`${dir}/built_areas.json`, []);
+    const players = loadJson(`${dir}/player_areas.json`, []);
     s = {
-        own, built, dir,
+        own, built, players, dir,
+        savePlayers() { saveJson(`${dir}/player_areas.json`, s.players); },
         saveOwn() { while (own.size > MAX_OWN) own.delete(own.keys().next().value); saveJson(`${dir}/own_blocks.json`, Object.fromEntries(own)); },
         saveBuilt() { saveJson(`${dir}/built_areas.json`, built); },
     };
@@ -64,6 +66,11 @@ export function protectedAreaAt(bot, pos) {
     if (!pos) return null;
     const dim = String(bot?.game?.dimension || 'overworld').replace('minecraft:', '');
     for (const a of manualAreas()) {
+        if (a.dimension && String(a.dimension).replace('minecraft:', '') !== dim) continue;
+        const dx = pos.x - a.x, dz = pos.z - a.z;
+        if (dx * dx + dz * dz <= a.radius * a.radius) return a;
+    }
+    for (const a of (states.get(bot)?.players || [])) {
         if (a.dimension && String(a.dimension).replace('minecraft:', '') !== dim) continue;
         const dx = pos.x - a.x, dz = pos.z - a.z;
         if (dx * dx + dz * dz <= a.radius * a.radius) return a;
@@ -197,4 +204,34 @@ export function installProtection(bot) {
     bot.once('end', () => clearInterval(scan));
     const manual = manualAreas();
     console.log(`Protection active: ${manual.length} manual area(s)${manual.length ? ' (' + manual.map(a => `${a.name || '?'} ${a.x},${a.z} r${a.radius}`).join('; ') + ')' : ''}, ${s.built.length} detected build(s), ${s.own.size} own blocks.`);
+}
+
+// Areas set by players in chat (Xaero waypoint or !schutz). Same name and owner replaces the old one.
+export function addPlayerArea(bot, {name, x, y = null, z, radius, dimension = 'overworld', owner}) {
+    const s = state(bot);
+    const area = {name: String(name).slice(0, 48), x: Math.round(x), y: y == null ? null : Math.round(y), z: Math.round(z),
+        radius, dimension, owner, at: Date.now()};
+    s.players = s.players.filter(a => !(a.owner === owner && a.name === area.name));
+    s.players.push(area);
+    s.savePlayers();
+    console.log(`Protection: ${owner} protected "${area.name}" at ${area.x} ${area.z} r${radius} (${dimension})`);
+    return area;
+}
+
+// Removes the player area at pos. Returns the area, 'none' or 'not_allowed'.
+export function removePlayerAreaAt(bot, pos, username, admin = false) {
+    const s = state(bot);
+    const hit = s.players.filter(a => (pos.x - a.x) ** 2 + (pos.z - a.z) ** 2 <= a.radius ** 2);
+    if (!hit.length) return 'none';
+    const mine = hit.find(a => a.owner === username) || (admin ? hit[0] : null);
+    if (!mine) return 'not_allowed';
+    s.players = s.players.filter(a => a !== mine);
+    s.savePlayers();
+    return mine;
+}
+
+export function listAreas(bot) {
+    const s = state(bot);
+    return [...manualAreas().map(a => ({...a, kind: 'manual'})), ...s.players.map(a => ({...a, kind: 'player'})),
+        ...s.built.map(a => ({...a, kind: 'built'}))];
 }
