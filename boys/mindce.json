@@ -1,0 +1,6 @@
+{
+    "name": "MindCE",
+    "model": {"api": "google", "model": "gemini-flash-latest", "params": {"thinkingConfig": {"thinkingLevel": "low"}}},
+    "embedding": "google",
+    "cooldown": 2000
+}
