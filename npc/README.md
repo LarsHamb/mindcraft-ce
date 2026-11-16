@@ -18,3 +18,4 @@ Keine dieser Nachrichten geht an das Modell.
 - `sicher-neustarten-live.sh [s]`: Neustart des Live-Bots nur ohne Chat in den letzten 5 min.
 - Wiederherstellen (Lars, 17.11.): In Schutzzonen darf er natuerliche Bloecke abbauen, um durchzukommen; sie kommen auf die Merkliste (bots/<name>/restore.json) und werden wieder eingesetzt. Gebaute Bloecke bleiben tabu, Ernten in Zonen ebenfalls. Loecher in der obersten Schicht schliesst er wieder (Erde statt Bruchstein), nach dem Faellen pflanzt er einen Setzling. Ausgenommen: digStairs-Eingaenge, Unterschlupf-Innenraum, bewusst gesammeltes Material. Zurueckgesetzt wird zwischen zwei Werkzeug-Aufrufen (bis 10 Bloecke Abstand) und im Leerlauf.
 - Jedes Bett ist eine Schutzzone (Radius 40), auch in Doerfern.
+- `weltwechsel-live.sh neu | alt <ordner>`: weltbezogene Bot-Daten (Zonen, eigene Bloecke, Merkliste, Gedaechtnis) beim Weltwechsel sichern und leeren bzw. zurueckholen. Startet nichts.
