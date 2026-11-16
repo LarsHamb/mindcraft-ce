@@ -1,8 +1,11 @@
 // Respect for other players' builds (ported from Jarvis kern/schutz.js).
 // - Building blocks (planks, glass, doors, ...) that the bot did not place itself are never broken.
 // - Logs that are not part of a natural tree (log walls, cabins, piles) count as building blocks.
-// - Protected areas: settings.protected_areas [{"name","x","z","radius"}] plus areas the bot detects
-//   itself around clusters of foreign building blocks. Inside, nothing is broken or placed.
+// - Protected areas: settings.protected_areas [{"name","x","z","radius"}], chat areas, every bed (r 40) and
+//   clusters of foreign building blocks. Inside, natural blocks may be broken to get through but are put
+//   back afterwards (restore list); nothing is harvested and nothing new is placed there.
+// - At the surface, holes the bot made by the way are filled again (top layer, soil with dirt), and a
+//   sapling is planted where it felled a tree. See modes.js restore_blocks.
 // Enforced at the lowest level (bot.dig, bot._genericPlace), so every skill, tool and the pathfinder's
 // own digging/scaffolding respect it; the pathfinder also plans around it.
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
@@ -50,8 +53,10 @@ function state(bot) {
     const own = new Map(Object.entries(loadJson(`${dir}/own_blocks.json`, {})));
     const built = loadJson(`${dir}/built_areas.json`, []);
     const players = loadJson(`${dir}/player_areas.json`, []);
+    const restore = loadJson(`${dir}/restore.json`, []);
     s = {
-        own, built, players, dir,
+        own, built, players, restore, dir,
+        saveRestore() { saveJson(`${dir}/restore.json`, s.restore); },
         savePlayers() { saveJson(`${dir}/player_areas.json`, s.players); },
         saveOwn() { while (own.size > MAX_OWN) own.delete(own.keys().next().value); saveJson(`${dir}/own_blocks.json`, Object.fromEntries(own)); },
         // s.built is replaced when areas are pruned: always save the current list
@@ -92,17 +97,112 @@ export function breakRefusal(bot, block) {
     if (s.own.get(key(block.position)) === block.name) return null;
     if (BUILDING.test(block.name)) return `${block.name} is player-built`;
     if (LOG.test(block.name) && !s.isTreeLog(block.position)) return `${block.name} is not part of a natural tree (log wall or building)`;
-    const area = protectedAreaAt(bot, block.position);
-    if (area) {
-        // Way out: standing inside the area, natural blocks right next to the bot may be broken so it can
-        // climb or dig out (it got trapped in a pit once). Building blocks and log walls stay refused above.
-        const me = bot.entity?.position;
-        if (me && protectedAreaAt(bot, me) === area && Math.abs(block.position.x + 0.5 - me.x) <= 2.5
-            && Math.abs(block.position.z + 0.5 - me.z) <= 2.5 && block.position.y >= Math.floor(me.y) - 1
-            && block.position.y <= Math.floor(me.y) + 3) return null;
-        return `protected area "${area.name || 'player base'}" (if you are inside it, walk out; natural blocks right next to you may be dug to get out)`;
-    }
+    // Inside protected areas natural blocks may be broken to get through (Lars, 17.11.): they are written to
+    // the restore list and put back afterwards. Building blocks and log walls stay refused above.
     return null;
+}
+
+// Harvesting (collectBlocks targets, mine entrances) is not allowed inside protected areas at all.
+export function harvestRefusal(bot, block) {
+    const reason = breakRefusal(bot, block);
+    if (reason) return reason;
+    const area = block?.position && protectedAreaAt(bot, block.position);
+    return area ? `protected area "${area.name || 'player base'}": do not harvest or dig mines there` : null;
+}
+
+// ---- Restore list: put back what was broken in protected areas or at the surface, replant saplings ----
+const SOIL = /^(grass_block|dirt|podzol|mycelium|coarse_dirt|rooted_dirt|dirt_path|moss_block|mud)$/;
+const NO_RESTORE = /(_leaves$|^snow$|^air$|^cave_air$|^water$|^lava$|grass$|fern$|flower|tulip|daisy|poppy|dandelion|orchid|allium|bluet|sapling|mushroom|vine|leaf_litter|bush|sugar_cane|kelp|seagrass|^ice$)/;
+const MAX_RESTORE = 400;
+const SAPLING_MS = 20 * 60000;
+
+export function restoreItems(name) {
+    if (SOIL.test(name)) return ['dirt', 'coarse_dirt', 'rooted_dirt', 'grass_block']; // never cobblestone on a meadow
+    if (name === 'stone') return ['stone', 'cobblestone'];
+    if (name === 'deepslate') return ['deepslate', 'cobbled_deepslate'];
+    if (/^deepslate_.+_ore$/.test(name)) return ['deepslate', 'cobbled_deepslate', 'stone', 'cobblestone'];
+    if (/_ore$/.test(name)) return ['stone', 'cobblestone'];
+    if (name === 'sandstone') return ['sandstone', 'sand'];
+    if (name === 'clay') return ['clay', 'dirt'];
+    return [name];
+}
+
+function saplingFor(logName) {
+    const kind = LOG.exec(logName)?.[1];
+    if (!kind) return null;
+    return kind === 'mangrove' ? 'mangrove_propagule' : `${kind}_sapling`;
+}
+
+function isSurfaceBlock(bot, pos) {
+    const above = bot.blockAt(new Vec3(pos.x, pos.y + 1, pos.z));
+    return !!above && above.boundingBox === 'empty' && !/^(water|lava)$/.test(above.name) && (above.skyLight ?? 0) >= 12;
+}
+
+// Called before a dig: what to write to the restore list if the dig succeeds (or null).
+export function restoreEntryFor(bot, block) {
+    if (!block?.position || bot.__noRestore) return null;
+    const p = block.position, name = block.name;
+    const s = state(bot);
+    // tree base on soil: replant (only natural trees get this far, log walls are refused)
+    if (LOG.test(name)) {
+        const below = bot.blockAt(new Vec3(p.x, p.y - 1, p.z));
+        const sapling = saplingFor(name);
+        return below && SOIL.test(below.name) && sapling ? {kind: 'sapling', x: p.x, y: p.y, z: p.z, name: sapling, items: [sapling]} : null;
+    }
+    if (BUILDING.test(name) || NO_RESTORE.test(name) || block.boundingBox === 'empty' || s.own.get(key(p)) === name) return null;
+    const zone = protectedAreaAt(bot, p);
+    if (!zone) {
+        if (bot.__intentionalDig === key(p)) return null; // material it set out to collect
+        if (!isSurfaceBlock(bot, p)) return null;
+        // only the top layer: a deeper block under an already listed surface block is not listed again
+        if (s.restore.some(e => e.kind === 'surface' && e.x === p.x && e.z === p.z && e.y > p.y)) return null;
+    }
+    return {kind: zone ? 'zone' : 'surface', x: p.x, y: p.y, z: p.z, name, items: restoreItems(name)};
+}
+
+export function addRestore(bot, entry) {
+    const s = state(bot);
+    s.restore = s.restore.filter(e => !(e.x === entry.x && e.y === entry.y && e.z === entry.z));
+    s.restore.push({...entry, at: Date.now(), tries: 0});
+    while (s.restore.length > MAX_RESTORE) s.restore.shift();
+    s.saveRestore();
+    console.log(`Restore list: ${entry.kind} ${entry.name} at ${entry.x} ${entry.y} ${entry.z} (${s.restore.length} open)`);
+}
+
+export const restoreList = bot => state(bot).restore.slice();
+const restoreAt = (bot, pos) => state(bot).restore.find(e => e.x === Math.floor(pos.x) && e.y === Math.floor(pos.y) && e.z === Math.floor(pos.z));
+
+export function finishRestore(bot, entry) {
+    const s = state(bot);
+    s.restore = s.restore.filter(e => e !== entry && !(e.x === entry.x && e.y === entry.y && e.z === entry.z));
+    s.saveRestore();
+}
+
+// Entries that can be done now: the spot is open again, the bot is not standing in it, an item is at hand.
+export function dueRestores(bot) {
+    const s = state(bot);
+    const me = bot.entity?.position;
+    if (!me) return [];
+    // open again: air, liquids and anything without a hitbox (leaf litter from the felled tree, grass, flowers)
+    const open = b => !b || /^(air|cave_air|water|lava)$/.test(b.name) || b.boundingBox === 'empty';
+    let changed = false;
+    const due = [];
+    for (const e of s.restore.slice()) {
+        const b = bot.blockAt(new Vec3(e.x, e.y, e.z));
+        if (!b) continue; // not loaded
+        const done = e.items.includes(b.name) || (e.kind !== 'sapling' && !open(b));
+        if (done || (e.kind === 'sapling' && !open(b))) { s.restore = s.restore.filter(x => x !== e); changed = true; continue; } // filled already
+        if (e.kind === 'sapling' && Date.now() - e.at > SAPLING_MS) { s.restore = s.restore.filter(x => x !== e); changed = true; continue; }
+        if ((e.tries || 0) >= 4) continue;
+        const d = Math.hypot(e.x + 0.5 - me.x, e.y - me.y, e.z + 0.5 - me.z);
+        const inside = Math.abs(e.x + 0.5 - me.x) < 0.9 && Math.abs(e.z + 0.5 - me.z) < 0.9 && e.y >= Math.floor(me.y) - 0 && e.y <= Math.floor(me.y) + 1;
+        if (d > 32 || inside) continue;
+        if (e.kind === 'sapling' && !SOIL.test(bot.blockAt(new Vec3(e.x, e.y - 1, e.z))?.name || '')) continue;
+        if (!e.items.some(n => bot.inventory?.findInventoryItem?.(n))) continue;
+        due.push({e, d});
+    }
+    if (changed) s.saveRestore();
+    return due.sort((a, b) => a.d - b.d).map(x => x.e);
 }
 
 export function isHarvestableLog(bot, block) {
@@ -117,7 +217,8 @@ function refusal(what, pos, reason) {
 
 function guardMovements(bot, movements) {
     if (!movements || movements.__protected) return movements;
-    movements.exclusionAreasBreak?.push(block => (breakRefusal(bot, block) ? 100000 : 0));
+    // building blocks: never; natural blocks inside a protected area: allowed but expensive (prefer a detour)
+    movements.exclusionAreasBreak?.push(block => (breakRefusal(bot, block) ? 100000 : block?.position && protectedAreaAt(bot, block.position) ? 40 : 0));
     movements.exclusionAreasPlace?.push(block => (block?.position && protectedAreaAt(bot, block.position) ? 100000 : 0));
     movements.__protected = true;
     return movements;
@@ -148,20 +249,10 @@ export function detectBuiltAreas(bot) {
     return null;
 }
 
-// Fallback without a waypoint (Lars, 17.11.): a bed a player has placed protects radius BED_RADIUS around it.
-// Village beds do not count: a bell, a villager or several dirt paths nearby mark a village.
+// Fallback without a waypoint (Lars, 17.11.): every bed the bot did not place itself protects radius
+// BED_RADIUS around it, village beds included (villages are not to be touched either).
 export const BED_RADIUS = 40;
-const VILLAGE_SEARCH = 48;
 const isBed = name => /_bed$/.test(name || '');
-
-export function looksLikeVillage(bot, pos) {
-    const near = (p, d) => p && Math.abs(p.x - pos.x) <= d && Math.abs(p.z - pos.z) <= d;
-    if (Object.values(bot.entities || {}).some(e => e?.name === 'villager' && near(e.position, VILLAGE_SEARCH))) return true;
-    const blocks = (names, d, count) => (bot.findBlocks({matching: b => !!b && names.includes(b.name), maxDistance: d, count, point: pos}) || [])
-        .filter(p => near(p, d));
-    if (blocks(['bell'], VILLAGE_SEARCH, 1).length) return true;
-    return blocks(['dirt_path'], 24, 12).length >= 12;
-}
 
 export function detectBeds(bot) {
     const s = state(bot);
@@ -169,7 +260,7 @@ export function detectBeds(bot) {
     for (const p of beds) {
         // a bed is two blocks; only one of them was recorded when the bot placed it itself
         const own = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => isBed(s.own.get(key({x: p.x + dx, y: p.y, z: p.z + dz}))));
-        if (own || protectedAreaAt(bot, p) || looksLikeVillage(bot, p)) continue;
+        if (own || protectedAreaAt(bot, p)) continue;
         const area = {name: `bed ${p.x},${p.z}`, kind: 'bed', bed: {x: p.x, y: p.y, z: p.z}, x: p.x, y: p.y, z: p.z, radius: BED_RADIUS, at: Date.now()};
         s.built.push(area);
         s.saveBuilt();
@@ -212,8 +303,10 @@ export function installProtection(bot) {
         bot.dig = async function (block, ...rest) {
             const reason = breakRefusal(bot, block);
             if (reason) throw refusal(`Breaking ${block.name}`, block.position, reason);
+            const entry = restoreEntryFor(bot, block);
             const result = await dig.call(this, block, ...rest);
             if (s.own.delete(key(block.position))) s.saveOwn();
+            if (entry) addRestore(bot, entry);
             return result;
         };
     }
@@ -222,9 +315,11 @@ export function installProtection(bot) {
         bot._genericPlace = async function (referenceBlock, faceVector, ...rest) {
             const target = referenceBlock?.position && faceVector ? referenceBlock.position.plus(faceVector) : null;
             const area = protectedAreaAt(bot, target);
-            if (area) throw refusal('Placing a block', target, `protected area "${area.name || 'player base'}"`);
+            // putting back what it broke there is allowed (restore list); anything else is refused
+            const restoring = target && restoreAt(bot, target);
+            if (area && !restoring) throw refusal('Placing a block', target, `protected area "${area.name || 'player base'}"`);
             const result = await place.call(this, referenceBlock, faceVector, ...rest);
-            if (target) {
+            if (target && !restoring) {
                 // the server update can arrive after the place call resolves: wait briefly for it
                 let now = bot.blockAt(target);
                 for (let i = 0; i < 10 && (!now || now.name === 'air' || now.name === 'cave_air'); i++) {

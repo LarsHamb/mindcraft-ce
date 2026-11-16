@@ -1,7 +1,7 @@
 import * as mc from "../../utils/mcdata.js";
 import * as world from "./world.js";
 import { collectBlocks } from './mining.js';
-import { breakRefusal, protectedAreaAt } from './protection.js';
+import { breakRefusal, harvestRefusal, protectedAreaAt } from './protection.js';
 import { assertActionOwner, actionContext, onActionCleanup, cancellable } from '../action_context.js';
 import pf from 'mineflayer-pathfinder';
 import Vec3 from 'vec3';
@@ -438,7 +438,7 @@ export async function collectBlockResult(bot, blockType, num=1, exclude=null) {
     const result = await collectBlocks(bot, blockType, num, {
         find: predicate => world.getNearestBlocksWhere(bot, block => predicate(block) &&
             (!block.position || movements.safeToBreak(block) || block.name === 'obsidian'), 64, 128)
-            .filter(block => predicate(block) && (movements.safeToBreak(block) || block.name === 'obsidian') && !breakRefusal(bot, block)),
+            .filter(block => predicate(block) && (movements.safeToBreak(block) || block.name === 'obsidian') && !harvestRefusal(bot, block)),
         pickup: () => pickupNearbyItems(bot, true),
         afterBreak: () => autoLight(bot),
         liquid: block => useToolOnBlock(bot, 'bucket', block), exclude,

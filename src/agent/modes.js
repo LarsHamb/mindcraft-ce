@@ -3,7 +3,8 @@ import * as world from './library/world.js';
 import * as mc from '../utils/mcdata.js';
 import settings from './settings.js'
 import convoManager from './conversation.js';
-import { protectedAreaAt } from './library/protection.js';
+import { protectedAreaAt, dueRestores, finishRestore } from './library/protection.js';
+import Vec3 from 'vec3';
 
 async function say(agent, message) {
     agent.bot.modes.behavior_log += message + '\n';
@@ -210,6 +211,24 @@ const modes_list = [
         }
     },
     {
+        // Lars, 17.11.: what was broken in a protected area is put back exactly; holes at the surface are
+        // closed again (soil with dirt, never cobblestone on a meadow); a sapling goes where a tree stood.
+        name: 'restore_blocks',
+        description: 'Put back blocks broken in protected areas or at the surface, and replant saplings, when idle.',
+        interrupts: ['action:followPlayer'],
+        on: true,
+        active: false,
+        last: 0,
+        update: async function (agent) {
+            if (!agent.isIdle() || Date.now() - this.last < 4000) return;
+            this.last = Date.now();
+            const bot = agent.bot;
+            const todo = dueRestores(bot);
+            if (!todo.length) return;
+            execute(this, agent, async () => { await placeRestores(bot, todo.slice(0, 8)); });
+        }
+    },
+    {
         name: 'torch_placing',
         description: 'Place torches when idle and there are no torches nearby.',
         interrupts: ['action:followPlayer'],
@@ -295,6 +314,35 @@ const modes_list = [
         update: function (agent) { /* do nothing */ }
     }
 ];
+
+async function placeRestores(bot, entries) {
+    let placed = 0;
+    for (const e of entries) {
+        if (bot.interrupt_code) break;
+        const item = e.items.find(n => bot.inventory.findInventoryItem(n));
+        if (!item) continue;
+        await skills.placeBlock(bot, item, e.x, e.y, e.z, 'bottom', true).catch(() => false);
+        const now = bot.blockAt(new Vec3(e.x, e.y, e.z));
+        if (now && e.items.includes(now.name)) { finishRestore(bot, e); placed++; }
+        else e.tries = (e.tries || 0) + 1;
+    }
+    return placed;
+}
+
+// Between two tool calls of a task (no model request): put back what is due close by, at most a few blocks.
+// A free-living bot is rarely idle, so the idle mode alone would hardly ever get to it.
+export async function restoreBetweenTools(agent, {radius = 10, max = 4} = {}) {
+    const bot = agent.bot;
+    if (!bot?.entity || bot.modes?.isOn && !bot.modes.isOn('restore_blocks')) return 0;
+    const me = bot.entity.position;
+    const near = dueRestores(bot).filter(e => Math.hypot(e.x + 0.5 - me.x, e.z + 0.5 - me.z) <= radius).slice(0, max);
+    if (!near.length) return 0;
+    const result = await agent.actions.runAction('action:restoreBlocks', async () => {
+        const n = await placeRestores(bot, near);
+        if (n) console.log(`Restored ${n} block(s) between tool calls.`);
+    }, {timeout: 1});
+    return result?.success ? near.length : 0;
+}
 
 async function execute(mode, agent, func, timeout=-1) {
     if (agent.self_prompter.isActive())

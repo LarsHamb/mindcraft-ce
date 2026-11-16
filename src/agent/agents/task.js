@@ -5,6 +5,7 @@ import { asToolResult, toolResult, toolResultText } from '../tool_result.js';
 import { ToolNarrator } from '../narration.js';
 import { parseObject, chatText, functionTool, validateArguments } from './structured.js';
 import { playerNarration, problemMessage } from '../user_messages.js';
+import { restoreBetweenTools } from '../modes.js';
 
 const controls = [
     functionTool('taskDone','Declare the assigned objective complete, with factual evidence.',{summary:{type:'string'}},[]),
@@ -125,6 +126,8 @@ export class TaskAgent {
                     history.push({role:'tool',name:call.name,tool_call_id:call.id,content});
                     await this.agent.history?.add('system',`${call.name}: ${content}`);
                     this.lastResults.push({name:call.name,...result});this.lastResults=this.lastResults.slice(-8);
+                    // put back nearby blocks it broke (protected areas, surface holes, saplings) without a model request
+                    if(!control&&!this.cancelJob) await restoreBetweenTools(this.agent).catch(error=>console.warn('restore:',error.message));
                     if(!control) await narrator.afterTool(result,call);
                     if(handoff) break;
                 }

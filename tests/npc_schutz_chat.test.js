@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import Vec3 from 'vec3';
 import settings from '../src/agent/settings.js';
 import { parseXaeroWaypoint, handleProtectionChat } from '../src/agent/library/protection_chat.js';
-import { protectedAreaAt, breakRefusal } from '../src/agent/library/protection.js';
+import { protectedAreaAt, harvestRefusal } from '../src/agent/library/protection.js';
 
 let n = 0;
 function fakeAgent(players = {}) {
@@ -31,7 +31,7 @@ test('a shared waypoint becomes a protected area without a model request', () =>
     assert.match(said[0], /Haus/);
     assert.ok(protectedAreaAt(bot, {x: 520, y: 70, z: 510}));
     assert.equal(protectedAreaAt(bot, {x: 600, y: 70, z: 500}), null);
-    assert.match(breakRefusal(bot, {name: 'stone', position: new Vec3(510, 60, 500)}) || '', /protected area/);
+    assert.match(harvestRefusal(bot, {name: 'stone', position: new Vec3(510, 60, 500)}) || '', /protected area/);
     // only home-like names are protected; others go to the model
     assert.equal(handleProtectionChat(agent, 'Tim', 'xaero-waypoint:Diamanten:D:900:12:900:6:false:0:Internal-overworld-waypoints'), false);
     assert.equal(protectedAreaAt(bot, {x: 900, y: 12, z: 900}), null);

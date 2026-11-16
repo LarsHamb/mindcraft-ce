@@ -89,8 +89,12 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
                     break;
                 }
                 report(`Mining ${block.name}; collected ${broken} of ${requested}.`);
-                await cancellable(bot, () => bot.dig(block, true, 'raycast'), Math.min(bot.digTime(block), 300000) + 8000,
-                    () => bot.stopDigging());
+                // the collected target is wanted material: no surface restore for it (protection.js)
+                bot.__intentionalDig = `${block.position.x},${block.position.y},${block.position.z}`;
+                try {
+                    await cancellable(bot, () => bot.dig(block, true, 'raycast'), Math.min(bot.digTime(block), 300000) + 8000,
+                        () => bot.stopDigging());
+                } finally { bot.__intentionalDig = null; }
                 assertActionOwner(bot);
                 // The digging dependency waits for a server update, rather than predicting air.
                 if (bot.blockAt(block.position)?.type === block.type) throw new Error('Server did not confirm the block break.');

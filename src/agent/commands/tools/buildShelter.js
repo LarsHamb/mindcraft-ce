@@ -131,7 +131,9 @@ class BuildShelterTool extends BaseTool {
                 `Get more blocks and call buildShelter again with the same origin and size, or fill holes with placeBlocks.`,
                 reason === 'ran out of building blocks' ? 'no_material' : 'holes');
         };
-        return await agent.actions.runAction('action:buildShelter', actionFn, {timeout: 6});
+        // the cleared floor is part of the shelter: no surface restore for it
+        const guarded = async () => { agent.bot.__noRestore = true; try { return await actionFn(); } finally { agent.bot.__noRestore = false; } };
+        return await agent.actions.runAction('action:buildShelter', guarded, {timeout: 6});
     }
 }
 

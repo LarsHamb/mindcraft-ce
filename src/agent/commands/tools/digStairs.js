@@ -2,7 +2,7 @@ import BaseTool from "../base_tool.js";
 import CommandProperty from "../property.js";
 import * as skills from "../../library/skills.js";
 import { toolResult } from "../../tool_result.js";
-import { breakRefusal } from "../../library/protection.js";
+import { harvestRefusal } from "../../library/protection.js";
 import Vec3 from "vec3";
 
 // Lars' mine (Vorspiel 15.11.): a straight staircase at 45 degrees, 3 blocks of headroom so you never
@@ -73,7 +73,7 @@ class DigStairsTool extends BaseTool {
                 for (const [cx, cy, cz] of cells) {
                     const b = at(cx, cy, cz);
                     if (!b || OPEN.test(b.name)) continue;
-                    const why = breakRefusal(bot, b);
+                    const why = harvestRefusal(bot, b);
                     if (why) return toolResult(done ? 'partial' : 'blocked', `Stopped after ${done} steps: ${why}.`, 'protected');
                     if (!await skills.breakBlockAt(bot, cx, cy, cz)) return toolResult(done ? 'partial' : 'failed', `Could not dig ${b.name} at ${cx},${cy},${cz} after ${done} steps.`, 'dig_failed');
                 }
@@ -91,7 +91,9 @@ class DigStairsTool extends BaseTool {
             const p = bot.entity.position.floored();
             return toolResult('ok', `Dug ${done} stair steps ${direction}${walled ? `, walled off ${walled} water/lava blocks` : ''}; now at ${p.x},${p.y},${p.z}. The way back up is the staircase.`);
         };
-        return await agent.actions.runAction('action:digStairs', actionFn, {timeout: 8});
+        // a mine entrance is meant to stay open: no surface restore for its cells
+        const guarded = async () => { agent.bot.__noRestore = true; try { return await actionFn(); } finally { agent.bot.__noRestore = false; } };
+        return await agent.actions.runAction('action:digStairs', guarded, {timeout: 8});
     }
 }
 
