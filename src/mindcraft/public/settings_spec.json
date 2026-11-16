@@ -280,5 +280,10 @@
         "type": "object",
         "default": {},
         "description": "Optional input_per_million, output_per_million, cached_input_per_million USD pricing when usage has no cost."
+    },
+    "protected_areas": {
+        "type": "array",
+        "default": [],
+        "description": "Player bases the bot must not break or place blocks in: [{\"name\", \"x\", \"z\", \"radius\"}]."
     }
 }

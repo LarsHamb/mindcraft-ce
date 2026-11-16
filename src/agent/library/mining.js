@@ -1,6 +1,7 @@
 import pf from 'mineflayer-pathfinder';
 import { actionContext, assertActionOwner, cancellable } from '../action_context.js';
 import { toolResult } from '../tool_result.js';
+import { protectedAreaAt } from './protection.js';
 
 const failures = new WeakMap();
 const counts = bot => Object.fromEntries(bot.inventory.items().map(i => [i.name,
@@ -15,6 +16,11 @@ export function blockTypes(type) {
     return types;
 }
 
+// Silent multi-minute loops are worse than an honest blocker: stop after this many failed
+// targets in a row, or after this long without a new block.
+export const MAX_FAILS_IN_ROW = 3;
+export const MAX_NO_PROGRESS_MS = 120000;
+
 export async function collectBlocks(bot, type, requested, {find, pickup, liquid, afterBreak, exclude = [], now = Date.now} = {}) {
     if (!Number.isSafeInteger(requested) || requested < 1) return toolResult('failed', 'Block count must be a positive integer.', 'bad_args');
     const before = counts(bot);
@@ -27,6 +33,8 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
         if (now()-info.at>30000 || (current&&(current.stateId??current.type)!==info.state)) failed.delete(key);
     }
     let broken = 0, attempts = 0, blocker = '';
+    let failsInRow = 0, lastProgress = now();
+    const where = () => { const p = bot.entity?.position; return p ? ` (standing at ${Math.floor(p.x)}, ${Math.floor(p.y)}, ${Math.floor(p.z)})` : ''; };
     const confirmed = new Set();
     const attemptedPositions = new Set();
     const perTarget = new Map();
@@ -47,9 +55,12 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
     while (broken < requested && attempts++ < Math.max(6, requested * 4)) {
         if (interrupt()) break;
         assertActionOwner(bot);
+        if (failsInRow >= MAX_FAILS_IN_ROW) { blocker = `Gave up after ${failsInRow} failed ${type} targets in a row: ${blocker}${where()}`; break; }
+        if (now() - lastProgress > MAX_NO_PROGRESS_MS) { blocker = `No new ${type} for ${Math.round((now() - lastProgress) / 1000)} s: ${blocker || 'no progress'}${where()}`; break; }
         const blocks = find(block => types.has(block.name) && (!block.position || (!excluded.has(block.position.toString()) &&
             !failed.has(block.position.toString()))) && (type !== 'water' && type !== 'lava' || block.metadata === 0))
-            .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()));
+            .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()))
+            .filter(block => !protectedAreaAt(bot, block.position));
         const target = blocks[0];
         if (!target) { blocker ||= `No reachable ${type} found nearby.`; break; }
         const key = target.position.toString();
@@ -92,8 +103,10 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
             await cancellable(bot, () => pickup(), 10000, () => bot.pathfinder.setGoal(null));
             if(afterBreak) await afterBreak();
             blocker = '';
+            failsInRow = 0; lastProgress = now();
         } catch (error) {
             if (interrupt()) break;
+            failsInRow++;
             blocker = `${type} at ${key}: ${error.message}`;
             if (perTarget.get(key) >= 2) {
                 failed.set(key, {at: now(), reason: error.message,position:target.position,state:target.stateId??target.type});

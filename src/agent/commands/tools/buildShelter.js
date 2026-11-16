@@ -3,6 +3,7 @@ import CommandProperty from "../property.js";
 import * as skills from "../../library/skills.js";
 import { toolResult } from "../../tool_result.js";
 import Vec3 from "vec3";
+import { protectedAreaAt } from "../../library/protection.js";
 
 // One tool call builds a whole small shelter (walls, roof, door gap) and verifies it afterwards.
 // Before this, the model placed every block with its own placeBlockAt request (~6-7k tokens each).
@@ -86,6 +87,8 @@ class BuildShelterTool extends BaseTool {
             const p = [x, y, z].every(Number.isFinite) ? new Vec3(Math.floor(x), Math.floor(y), Math.floor(z)) : bot.entity.position.floored();
             const plan = planShelter(p, width, depth, height);
             const targets = [...plan.walls, ...plan.roof];
+            const guarded = targets.map(q => protectedAreaAt(bot, q)).find(Boolean);
+            if (guarded) return toolResult('blocked', `Cannot build here: protected area "${guarded.name || 'player base'}". Move outside it first.`, 'protected_area');
             const at = (q) => bot.blockAt(new Vec3(q.x, q.y, q.z));
             const missing = targets.filter(q => !isSolidName(at(q)?.name));
             const materials = pickMaterials(bot, material);
