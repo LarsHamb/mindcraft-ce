@@ -1,7 +1,6 @@
 import pf from 'mineflayer-pathfinder';
 import { actionContext, assertActionOwner, cancellable } from '../action_context.js';
 import { toolResult } from '../tool_result.js';
-import { protectedAreaAt } from './protection.js';
 
 const failures = new WeakMap();
 const counts = bot => Object.fromEntries(bot.inventory.items().map(i => [i.name,
@@ -59,8 +58,7 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
         if (now() - lastProgress > MAX_NO_PROGRESS_MS) { blocker = `No new ${type} for ${Math.round((now() - lastProgress) / 1000)} s: ${blocker || 'no progress'}${where()}`; break; }
         const blocks = find(block => types.has(block.name) && (!block.position || (!excluded.has(block.position.toString()) &&
             !failed.has(block.position.toString()))) && (type !== 'water' && type !== 'lava' || block.metadata === 0))
-            .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()))
-            .filter(block => !protectedAreaAt(bot, block.position));
+            .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()));
         const target = blocks[0];
         if (!target) { blocker ||= `No reachable ${type} found nearby.`; break; }
         const key = target.position.toString();

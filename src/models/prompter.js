@@ -201,6 +201,11 @@ export class Prompter {
     async replaceStrings(prompt, messages, examples=null, to_summarize=[], last_goals=null) {
         prompt = prompt.replaceAll('$NARRATION_RULES', narrationInstructions(this.profile));
         prompt = prompt.replaceAll('$NAME', this.agent.name);
+        for (const [placeholder, field] of [['$BRAIN_KNOWLEDGE', 'brain_knowledge'], ['$TASK_KNOWLEDGE', 'task_knowledge']]) {
+            if (!prompt.includes(placeholder)) continue;
+            const k = this.profile[field];
+            prompt = prompt.replaceAll(placeholder, Array.isArray(k) ? k.map(line => `- ${line}`).join('\n') : (k || ''));
+        }
 
         if (prompt.includes('$STATS')) {
             let stats = await getCommand('!stats').perform(this.agent) + '\n';

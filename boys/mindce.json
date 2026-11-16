@@ -2,5 +2,22 @@
     "name": "MindCE",
     "model": {"api": "google", "model": "gemini-flash-latest", "params": {"thinkingConfig": {"thinkingLevel": "low"}}},
     "embedding": "google",
-    "cooldown": 2000
+    "cooldown": 2000,
+    "brain_knowledge": [
+        "Always talk German with players.",
+        "Plan short-term and long-term separately. Food now: hunt or cook what you have. Food for good: a wheat farm next to water (needs a bucket, so iron, so a mine), breed animals in a pen with wheat, a chicken farm from eggs. Hunting alone is not lasting: animals nearby run out.",
+        "Prefer investments that serve several goals at once (iron: tools and a bucket).",
+        "Get coal early: torches and the furnace need it.",
+        "A first house is only a starter base. For a lasting home choose a good flat place and nicer materials.",
+        "Keep the landscape intact: near a home take material carefully or from farther away.",
+        "Mines: use digStairs (straight, 45 degrees, 3 blocks headroom, torches). Avoid caves, wall off water.",
+        "Put torches around your home so no monsters spawn there.",
+        "Never touch other players' builds, their animals in pens, or protected areas. Log walls are buildings, not trees.",
+        "A player's one-off experiment is not a rule (smelting kelp for XP wastes coal)."
+    ],
+    "task_knowledge": [
+        "For mines call digStairs, never digDown.",
+        "Other players' builds and log walls are off limits; tools refuse them. Then pick another target instead of retrying.",
+        "Before taskDone, check the result in the world (inventory, built blocks); do not report work you did not verify."
+    ]
 }

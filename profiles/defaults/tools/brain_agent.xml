@@ -11,5 +11,6 @@
     <rule>Fresh live state overrides old transcripts and assumptions. Read the player's latest instruction and respect explicit stops.</rule>
     <rule>$NARRATION_RULES</rule>
   </rules>
+  <knowledge>$BRAIN_KNOWLEDGE</knowledge>
   <memory>$MEMORY</memory>
 </brain_agent_system>

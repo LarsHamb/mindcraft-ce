@@ -11,6 +11,7 @@
     <rule>If Brain sends updates during the task, incorporate them into your plan.</rule>
     <rule>Save requests: for a shelter call buildShelter once; for several blocks use placeBlocks with all coordinates; never call placeBlockAt repeatedly. When several independent calls are needed, return them together in one response.</rule>
   </instructions>
+  <knowledge>$TASK_KNOWLEDGE</knowledge>
   <context>
   </context>
 </task_agent_system>

@@ -3,6 +3,7 @@ import * as world from './library/world.js';
 import * as mc from '../utils/mcdata.js';
 import settings from './settings.js'
 import convoManager from './conversation.js';
+import { protectedAreaAt } from './library/protection.js';
 
 async function say(agent, message) {
     agent.bot.modes.behavior_log += message + '\n';
@@ -35,7 +36,22 @@ const modes_list = [
             let blockAbove = bot.blockAt(bot.entity.position.offset(0, 1, 0));
             if (!block) block = {name: 'air'}; // hacky fix when blocks are not loaded
             if (!blockAbove) blockAbove = {name: 'air'};
-            if (blockAbove.name === 'water') {
+            const oxygen = Number.isFinite(bot.oxygenLevel) ? bot.oxygenLevel : 20;
+            if (blockAbove.name === 'water' && oxygen < 8) {
+                // running out of air: drop the current goal and swim straight up until the head is out
+                say(agent, 'I need air!');
+                execute(this, agent, async () => {
+                    bot.pathfinder.setGoal(null);
+                    bot.setControlState('jump', true);
+                    bot.setControlState('forward', false);
+                    await bot.look(bot.entity.yaw, Math.PI / 2, true).catch(() => {});
+                    const until = Date.now() + 10000;
+                    while (Date.now() < until && bot.blockAt(bot.entity.position.offset(0, 1, 0))?.name === 'water')
+                        await new Promise(r => setTimeout(r, 200));
+                    bot.setControlState('jump', false);
+                });
+            }
+            else if (blockAbove.name === 'water') {
                 // does not call execute so does not interrupt other actions
                 if (!bot.pathfinder.goal) {
                     bot.setControlState('jump', true);
@@ -145,7 +161,7 @@ const modes_list = [
         on: true,
         active: false,
         update: async function (agent) {
-            const huntable = world.getNearestEntityWhere(agent.bot, entity => mc.isHuntable(entity), 8);
+            const huntable = world.getNearestEntityWhere(agent.bot, entity => mc.isHuntable(entity) && !protectedAreaAt(agent.bot, entity.position), 8);
             if (huntable && await world.isClearPath(agent.bot, huntable)) {
                 execute(this, agent, async () => {
                     say(agent, `Hunting ${huntable.name}!`);
