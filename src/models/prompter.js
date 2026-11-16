@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import { readFileSync, mkdirSync, writeFileSync} from 'fs';
 import { Examples } from '../utils/examples.js';
 import { getCommandDocs } from '../agent/commands/index.js';
@@ -314,6 +315,7 @@ export class Prompter {
         }
         if (epoch !== this.cancelEpoch || roleEpoch !== (this.roleEpochs.get(role) || 0)) throw new Error('Request cancelled');
         const seconds = this.profile.request_timeout_seconds ?? settings.request_timeout_seconds ?? 120;
+        try { appendFileSync(`./bots/${this.agent.name}/request-sizes.jsonl`, JSON.stringify({at: Date.now(), role, prompt: prompt.length, tools: JSON.stringify(tools || []).length, toolCount: (tools || []).length, messages: JSON.stringify(requestMessages).length, turns: requestMessages.length}) + '\n'); } catch {}
         if (!Number.isFinite(seconds) || seconds <= 0) throw new Error('request_timeout_seconds must be positive');
         const controller = new AbortController();
         controller.role = role;

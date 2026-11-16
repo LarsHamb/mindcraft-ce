@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 
 const roles=new AsyncLocalStorage();
@@ -57,6 +57,7 @@ export class UsageMeter {
         const u=response.usage||response.usageMetadata||{};
         const unknownTokens=![u.input_tokens,u.prompt_tokens,u.promptTokenCount,response.prompt_eval_count,u.output_tokens,u.completion_tokens,u.candidatesTokenCount,response.eval_count].some(Number.isFinite);
         this.events.push({at:this.now(),tokens:usage.input+usage.output,unknownTokens});
+        if(this.file) {try {mkdirSync(path.dirname(this.file),{recursive:true});appendFileSync(path.join(path.dirname(this.file),'usage-log.jsonl'),JSON.stringify({at:this.now(),role,input:usage.input,cached:usage.cached,output:usage.output,thoughts:u.thoughtsTokenCount??u.output_tokens_details?.reasoning_tokens??0,latencyMs})+'\n');} catch {}}
         const totals=this.byRole[role]||={calls:0,input:0,output:0,cached:0,cost:0,latencyMs:0,pricedCalls:0};
         totals.calls++;for(const key of ['input','output','cached']) totals[key]+=usage[key];
         totals.cost+=usage.cost||0;totals.pricedCalls+=Number(usage.cost!=null);totals.latencyMs+=latencyMs;

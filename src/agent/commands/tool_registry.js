@@ -3,12 +3,14 @@ import { getCommands, isAction } from './index.js';
 import { getBlockId, getItemId } from '../../utils/mcdata.js';
 import settings from '../settings.js';
 import PlaceBlockAt from './tools/placeBlockAt.js';
+import PlaceBlocks from './tools/placeBlocks.js';
+import BuildShelter from './tools/buildShelter.js';
 import ExecuteCode from './tools/executeCode.js';
 import GenerateAugment from './tools/generateAugment.js';
 import SearchSkills from './tools/searchSkills.js';
 import { getAugmentRegistry } from '../agents/code.js';
 
-const extras = [new PlaceBlockAt(), new ExecuteCode(), new GenerateAugment(), new SearchSkills()];
+const extras = [new PlaceBlockAt(), new PlaceBlocks(), new BuildShelter(), new ExecuteCode(), new GenerateAugment(), new SearchSkills()];
 const codeTools = new Set(['newAction', 'executeCode', 'generateAugment']);
 const unblockable = new Set(['stop', 'stats', 'inventory', 'goal']);
 const types = { int: 'integer', float: 'number', BlockName: 'string', ItemName: 'string', BlockOrItemName: 'string' };

@@ -119,8 +119,18 @@ export function initBot(username) {
     let pendingPositionPacket = null;
     const POSITION_THROTTLE_MS = 50;
     const originalWrite = bot._client.write.bind(bot._client);
+    let tickPacedCache = null;
+    const tickPaced = () => {
+        if (tickPacedCache === null && bot.registry) {
+            try { tickPacedCache = Boolean(bot.supportFeature('sendsClientTickEndPacket')); } catch { tickPacedCache = false; }
+        }
+        return tickPacedCache === true;
+    };
     bot._client.write = function(name, data) {
-        if (name === 'position' || name === 'position_look' || name === 'look') {
+        // 1.21.2+ servers (and 26.3 strictly) count movement per client tick, closed by tick_end.
+        // A delayed packet lands in the next tick next to that tick's own movement -> kick
+        // (invalid_player_movement). Those versions are paced by mineflayer's tick loop, so no throttle.
+        if ((name === 'position' || name === 'position_look' || name === 'look') && !tickPaced()) {
             const now = Date.now();
             if (now - lastPositionUpdate < POSITION_THROTTLE_MS) {
                 // Queue this packet so the last position update is never lost

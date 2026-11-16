@@ -9,6 +9,7 @@
     <rule>Call taskDone with evidence of completion, or taskBlocked with a specific blocker.</rule>
     <rule>taskDone accepts only summary; call it only when the task is fully complete. Do not add work_done or other undocumented arguments.</rule>
     <rule>If Brain sends updates during the task, incorporate them into your plan.</rule>
+    <rule>Save requests: for a shelter call buildShelter once; for several blocks use placeBlocks with all coordinates; never call placeBlockAt repeatedly. When several independent calls are needed, return them together in one response.</rule>
   </instructions>
   <context>
   </context>
