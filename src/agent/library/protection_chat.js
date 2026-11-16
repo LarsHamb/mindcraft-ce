@@ -1,7 +1,8 @@
 // Player-set protected areas from chat, handled without any model request.
 //  - Xaero's Minimap "share waypoint" posts a chat line like
 //      xaero-waypoint:Base:B:268:64:-160:6:false:0:Internal-overworld-waypoints
-//    Every shared waypoint becomes a protected area (default radius 40) owned by the sender.
+//    A shared waypoint named like a home (Base, Basis, Haus, Home, Zuhause, Heim ...) becomes a protected
+//    area (default radius 40) owned by the sender; other waypoints are left to the model.
 //  - Fallback without the mod:  !schutz [radius] [name]   around the sender's position
 //                               !schutz weg                removes the area you stand in (owner or admin)
 //                               !schutz liste              lists the areas
@@ -9,6 +10,7 @@ import { addPlayerArea, removePlayerAreaAt, listAreas, protectedAreaAt } from '.
 import settings from '../settings.js';
 
 const DEFAULT_RADIUS = 40, MIN_RADIUS = 5, MAX_RADIUS = 128;
+export const BASE_NAME = /(base|basis|haus|house|home|zuhause|heim)/i;
 const WAYPOINT = /xaero-waypoint:([^:]*):([^:]*):(-?\d+|~):(-?\d+|~):(-?\d+|~):(\d+):(true|false):(-?\d+)(?::(\S+))?/i;
 
 export function parseXaeroWaypoint(message) {
@@ -33,7 +35,8 @@ function say(agent, text) {
 export function handleProtectionChat(agent, username, message) {
     const bot = agent.bot;
     const wp = parseXaeroWaypoint(message);
-    if (wp) {
+    // Only waypoints named like a home become protected areas (Lars, 17.11.); others go to the model as usual.
+    if (wp && BASE_NAME.test(wp.name)) {
         const area = addPlayerArea(bot, {name: `${wp.name} (${username})`, x: wp.x, y: wp.y, z: wp.z,
             radius: DEFAULT_RADIUS, dimension: wp.dimension, owner: username});
         say(agent, `Okay ${username}, ich lasse "${wp.name}" bei ${area.x} / ${area.z} in Ruhe (Radius ${area.radius}).`);

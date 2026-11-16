@@ -9,7 +9,7 @@
 
 ## Schutzzonen im Chat
 
-- Xaero-Wegpunkt teilen (Share im Wegpunkt-Menue): wird als Zone mit Radius 40 uebernommen.
+- Xaero-Wegpunkt teilen (Share im Wegpunkt-Menue): Name mit Base, Basis, Haus, House, Home, Zuhause oder Heim wird Zone mit Radius 40, andere Wegpunkte nicht.
 - `!schutz [radius] [name]`: Zone um die eigene Position (Radius 5 bis 128, Standard 40).
 - `!schutz weg`: entfernt die Zone, in der man steht (nur wer sie gesetzt hat oder `protection_admins`).
 - `!schutz liste`: zeigt alle Zonen.
