@@ -15,6 +15,9 @@ export const brainTools=[
     },['name']),
     functionTool('completeGoal','Mark a goal complete after verifying evidence; inventory targets are checked in code.',{name:{type:'string'}}),
     functionTool('removeGoal','Remove a goal no longer wanted.',{name:{type:'string'}}),
+    functionTool('rememberPlayer','Remember a lasting fact about a player from the conversation: preferred name, likes, dislikes, a running gag, a promise. One short sentence.',{
+        player:{type:'string'},note:{type:'string'},kind:{type:'string',enum:['name','likes','dislikes','gag','promise','fact']},
+    },['player','note']),
 ];
 
 export const BRAIN_TAIL = 12;

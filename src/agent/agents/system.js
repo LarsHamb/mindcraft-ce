@@ -1,3 +1,4 @@
+import { rememberPlayer } from '../library/player_memory.js';
 import { randomUUID } from 'node:crypto';
 import { BrainAgent, brainTools } from './brain.js';
 import { validateArguments } from './structured.js';
@@ -124,6 +125,7 @@ export class AgentSystem {
             await this.say(source,a.message,true);return 'Message delivered.';
         }
         if(call.name==='wait') return 'Waiting for relevant events.';
+        if(call.name==='rememberPlayer') return rememberPlayer(this.agent.name,a.player,a.note,a.kind||'fact');
         if(call.name==='stopTask') {this.task.cancelTask();await this.agent.actions.stop();this.currentDirective=null;return 'Task stopped.';}
         if(call.name==='injectNote') {
             if(typeof a.note!=='string') throw new Error('injectNote requires a note');
@@ -175,6 +177,8 @@ export class AgentSystem {
                 if(generation!==this.generation||this.task.cancelJob||this.currentDirective?.id!==directive.id) return;
                 this.lastDirective={...directive,outcome:result.work_done?'done':result.blocked?'blocked':'paused',result};
                 this.currentDirective=null;this.brain.recordTaskOutcome(result);
+                // what it did for whom (player memory); only for real players, not for its own plans
+                if(result.work_done&&source&&!['system','ADMIN',this.agent.name].includes(source)) rememberPlayer(this.agent.name,source,`did for them: ${directive.objective}`,'done');
                 if(this.agent.decisions?.enabled&&result.work_done) {
                     const goals=this.brain.goals.active().filter(g=>!g.target);
                     const completed=await this.agent.decisions.checkGoals(goals,{results:this.task.lastResults,inventory:this.fingerprint()});

@@ -6,7 +6,8 @@ import { SkillLibrary } from "../agent/library/skill_library.js";
 import { stringifyTurns } from '../utils/text.js';
 import { getCommand } from '../agent/commands/index.js';
 import settings from '../agent/settings.js';
-import { waitForPlayers } from '../agent/player_gate.js';
+import { waitForPlayers, realPlayersOnline } from '../agent/player_gate.js';
+import { playerNotes } from '../agent/library/player_memory.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -320,7 +321,10 @@ export class Prompter {
             // Brain's summarized memory changes every few minutes: it goes here, at the end, not into the
             // system prompt, so the fixed prompt prefix stays cacheable.
             const memory = role === 'brain' && this.agent.history?.memory ? '\nSUMMARIZED MEMORY: $MEMORY' : '';
-            const state = await this.replaceStrings('CURRENT STATE (fresh, takes precedence over older observations):\n$STATS\n$INVENTORY' + memory, []);
+            // what it knows about the players who are online (player memory)
+            const known = role === 'brain' ? playerNotes(this.agent.name, realPlayersOnline(this.agent.bot)) : '';
+            const people = known ? `\nPLAYERS ONLINE, WHAT YOU KNOW ABOUT THEM:\n${known}` : '';
+            const state = (await this.replaceStrings('CURRENT STATE (fresh, takes precedence over older observations):\n$STATS\n$INVENTORY' + memory, [])) + people;
             requestMessages = [...messages, {role:'user',content:state}];
         }
         if (epoch !== this.cancelEpoch || roleEpoch !== (this.roleEpochs.get(role) || 0)) throw new Error('Request cancelled');

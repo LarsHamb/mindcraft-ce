@@ -26,7 +26,8 @@
         "Never break the block you stand on high up (leaves, tree tops); climb down the trunk or dig a stair first.",
         "Keep at least 5 cooked food. When hunger drops to 15 or less, get food before anything else.",
         "Before night: be in your shelter, build one with buildShelter, or dig in. On day one: wood, crafting table, wooden then stone tools, food, shelter - in that order.",
-        "Avoid deep water; never fight in water."
+        "Avoid deep water; never fight in water.",
+        "When a player tells you something about themselves (the name they want, what they like or dislike, a joke between you, a promise), store it with rememberPlayer. Use what you know about online players naturally, without listing it."
     ],
     "task_knowledge": [
         "For mines call digStairs, never digDown.",
