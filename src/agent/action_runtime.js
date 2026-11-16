@@ -25,6 +25,11 @@ export class ActionManager {
         return this.runAction(this.resume_name, this.resume_func, {timeout: this.resume_timeout});
     }
     async runAction(label, fn, {timeout = 10, resume = false} = {}) {
+        // A reflex in an emergency (air, fire, near death) must not be replaced by the next task action:
+        // other actions wait until the emergency window is over (it drowned once while Task walked on).
+        if (!String(label).startsWith('mode:')) {
+            while ((this.agent.emergencyUntil || 0) > Date.now()) await new Promise(r => setTimeout(r, 250));
+        }
         if (resume) { this.resume_func = fn; this.resume_name = label; this.resume_timeout = timeout; }
         let release;
         const previous = this.startQueue;

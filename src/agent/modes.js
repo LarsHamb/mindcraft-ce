@@ -37,9 +37,14 @@ const modes_list = [
             if (!block) block = {name: 'air'}; // hacky fix when blocks are not loaded
             if (!blockAbove) blockAbove = {name: 'air'};
             const oxygen = Number.isFinite(bot.oxygenLevel) ? bot.oxygenLevel : 20;
-            if (blockAbove.name === 'water' && oxygen < 8) {
+            // head under water: also count the time, in case the air value is missing or stale
+            if (blockAbove.name === 'water') this.underwaterSince ||= Date.now(); else this.underwaterSince = 0;
+            const underwaterMs = this.underwaterSince ? Date.now() - this.underwaterSince : 0;
+            if (blockAbove.name === 'water' && (oxygen < 8 || underwaterMs > 7000) && !this.surfacing) {
                 // running out of air: drop the current goal and swim straight up until the head is out
                 say(agent, 'I need air!');
+                agent.emergencyUntil = Date.now() + 12000;
+                this.surfacing = true;
                 execute(this, agent, async () => {
                     bot.pathfinder.setGoal(null);
                     bot.setControlState('jump', true);
@@ -49,7 +54,9 @@ const modes_list = [
                     while (Date.now() < until && bot.blockAt(bot.entity.position.offset(0, 1, 0))?.name === 'water')
                         await new Promise(r => setTimeout(r, 200));
                     bot.setControlState('jump', false);
-                });
+                    // still under water (deep pit, ceiling): head for the nearest air above water
+                    if (bot.blockAt(bot.entity.position.offset(0, 1, 0))?.name === 'water') await skills.goToSurface(bot).catch(() => false);
+                }).finally(() => { this.surfacing = false; agent.emergencyUntil = 0; });
             }
             else if (blockAbove.name === 'water') {
                 // does not call execute so does not interrupt other actions
@@ -94,6 +101,7 @@ const modes_list = [
             }
             else if (Date.now() - bot.lastDamageTime < 3000 && (bot.health < 5 || bot.lastDamageTaken >= bot.health)) {
                 say(agent, 'I\'m dying!');
+                agent.emergencyUntil = Date.now() + 8000;
                 execute(this, agent, async () => {
                     await skills.moveAway(bot, 20);
                 });

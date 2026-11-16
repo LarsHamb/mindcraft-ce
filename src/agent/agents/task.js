@@ -12,6 +12,22 @@ const controls = [
     functionTool('requestTools','Request additional available tools for this directive.',{names:{type:'array',items:{type:'string'}},reason:{type:'string'}},['names']),
 ];
 
+// The task loop resends its whole history with every request, so long directives grew to ~60k characters
+// per request. Send only the objective plus the recent tail; older steps become one short note. The tail never
+// starts with a tool result, so every tool result keeps the call it answers.
+export const TASK_HISTORY_TAIL = 14;
+export function compactTaskHistory(history, lastResults = [], keep = TASK_HISTORY_TAIL) {
+    if (history.length <= keep + 2) return history;
+    const head = history.slice(0, 1);
+    let start = history.length - keep;
+    while (start < history.length && history[start]?.role === 'tool') start++;
+    const omitted = start - 1;
+    if (omitted <= 0) return history;
+    const recent = lastResults.slice(-5).map(r => `${r.name}: ${r.status || ''} ${String(r.text || '').slice(0, 120)}`.trim()).join('; ');
+    const note = {role: 'user', content: `(${omitted} earlier messages of this task omitted to save tokens. Recent results: ${recent || 'none'}. Check the fresh state before repeating work.)`};
+    return [...head, note, ...history.slice(start)];
+}
+
 export class TaskAgent {
     constructor(agent, messageQueue) {
         this.agent=agent;this.messageQueue=messageQueue;this.is_running=false;this.cancelJob=false;
@@ -60,7 +76,7 @@ export class TaskAgent {
                 narrator.startThinking();
                 const [text,calls]=conversation
                     ?await this.agent.prompter.promptTools(history,definitions)
-                    :await this.agent.prompter.requestTools(history,prompt,definitions,null,this.model||this.agent.prompter.task_model||this.agent.prompter.chat_model);
+                    :await this.agent.prompter.requestTools(compactTaskHistory(history,this.lastResults),prompt,definitions,null,this.model||this.agent.prompter.task_model||this.agent.prompter.chat_model);
                 narrator.endThinking();
                 if(this.cancelJob||shouldInterrupt()) break;
                 history.push(toolCallMessage(text,calls));
