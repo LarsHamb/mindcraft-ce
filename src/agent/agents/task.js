@@ -16,17 +16,25 @@ const controls = [
 // The task loop resends its whole history with every request, so long directives grew to ~60k characters
 // per request. Send only the objective plus the recent tail; older steps become one short note. The tail never
 // starts with a tool result, so every tool result keeps the call it answers.
-export const TASK_HISTORY_TAIL = 14;
+export const TASK_HISTORY_TAIL = 8;
+// Older tool results (nearby blocks, entities, inventories) are long and stale; only the newest ones stay full.
+export const FULL_RESULTS = 2, SHORT_RESULT = 300;
+function shortenOldResults(messages) {
+    const tools = messages.map((m, i) => (m.role === 'tool' ? i : -1)).filter(i => i >= 0);
+    const keepFull = new Set(tools.slice(-FULL_RESULTS));
+    return messages.map((m, i) => (m.role === 'tool' && !keepFull.has(i) && String(m.content || '').length > SHORT_RESULT
+        ? {...m, content: `${String(m.content).slice(0, SHORT_RESULT)} ... (shortened)`} : m));
+}
 export function compactTaskHistory(history, lastResults = [], keep = TASK_HISTORY_TAIL) {
-    if (history.length <= keep + 2) return history;
+    if (history.length <= keep + 2) return shortenOldResults(history);
     const head = history.slice(0, 1);
     let start = history.length - keep;
     while (start < history.length && history[start]?.role === 'tool') start++;
     const omitted = start - 1;
-    if (omitted <= 0) return history;
+    if (omitted <= 0) return shortenOldResults(history);
     const recent = lastResults.slice(-5).map(r => `${r.name}: ${r.status || ''} ${String(r.text || '').slice(0, 120)}`.trim()).join('; ');
     const note = {role: 'user', content: `(${omitted} earlier messages of this task omitted to save tokens. Recent results: ${recent || 'none'}. Check the fresh state before repeating work.)`};
-    return [...head, note, ...history.slice(start)];
+    return shortenOldResults([...head, note, ...history.slice(start)]);
 }
 
 export class TaskAgent {

@@ -13,7 +13,14 @@ function longHistory(pairs) {
 
 test('short task histories are sent unchanged', () => {
     const h = longHistory(3);
-    assert.equal(compactTaskHistory(h), h);
+    assert.deepEqual(compactTaskHistory(h), h);
+    // long old tool results are shortened, the newest stay full
+    const big = longHistory(3);
+    for (const m of big) if (m.role === 'tool') m.content = 'x'.repeat(2000);
+    const c = compactTaskHistory(big);
+    const tools = c.filter(m => m.role === 'tool');
+    assert.ok(tools[0].content.length < 400);
+    assert.equal(tools.at(-1).content.length, 2000);
 });
 
 test('long task histories keep the objective, a note and a tail without orphan tool results', () => {
