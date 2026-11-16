@@ -23,5 +23,28 @@
   "usd_per_session": null,
   "usd_per_day": null,
   "tokens_per_hour": 1000000
- }
+ },
+ "blocked_actions": [
+  "!checkBlueprint",
+  "!checkBlueprintLevel",
+  "!getBlueprint",
+  "!getBlueprintLevel",
+  "!tradeWithVillager",
+  "!showVillagerTrades",
+  "!lookAtPlayer",
+  "!lookAtPosition",
+  "!startConversation",
+  "!endConversation",
+  "!setMode",
+  "!endGoal",
+  "!stfu",
+  "!restart",
+  "!clearChat",
+  "!searchSkills",
+  "!attackPlayer",
+  "!newAction"
+ ],
+ "npc_language": "de",
+ "pause_without_players": true,
+ "ignore_players": []
 }

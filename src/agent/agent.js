@@ -5,6 +5,7 @@ import { Prompter } from '../models/prompter.js';
 import { initModes } from './modes.js';
 import { initBot } from '../utils/mcdata.js';
 import { handleProtectionChat } from './library/protection_chat.js';
+import { germanize } from './npc_phrases.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
 import { ActionManager } from './action_manager.js';
 import { NPCContoller } from './npc/controller.js';
@@ -421,6 +422,11 @@ export class Agent {
     }
 
     async openChat(message) {
+        if (settings.npc_language === 'de') message = germanize(message);
+        // the same sentence twice within a minute is spam (e.g. a budget pause answered per message)
+        const now = Date.now(), text = String(message).trim();
+        if (this._lastChat && this._lastChat.text === text && now - this._lastChat.at < 60000) return;
+        this._lastChat = {text, at: now};
         let to_translate = message;
         let remaining = '';
         let command_name = containsCommand(message);

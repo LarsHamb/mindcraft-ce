@@ -6,7 +6,7 @@ class PlaceBlockAtTool extends BaseTool {
     constructor() {
         super(
             "placeBlockAt",
-            "Place a block at specific coordinates. Use this for building structures with precise placement.",
+            "Place ONE block at specific coordinates. For two or more blocks (walls, torches along a path) use placeBlocks in a single call; for a shelter use buildShelter.",
             [
                 new CommandProperty("type", "The block type to place.", "string", true),
                 new CommandProperty("x", "The x coordinate.", "integer", true),

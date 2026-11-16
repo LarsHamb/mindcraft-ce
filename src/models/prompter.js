@@ -6,6 +6,7 @@ import { SkillLibrary } from "../agent/library/skill_library.js";
 import { stringifyTurns } from '../utils/text.js';
 import { getCommand } from '../agent/commands/index.js';
 import settings from '../agent/settings.js';
+import { waitForPlayers } from '../agent/player_gate.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -274,6 +275,7 @@ export class Prompter {
     }
 
     async checkCooldown() {
+        await waitForPlayers(this.agent);
         let elapsed = Date.now() - this.last_prompt_time;
         if (elapsed < this.cooldown && this.cooldown > 0) {
             await new Promise(r => setTimeout(r, this.cooldown - elapsed));

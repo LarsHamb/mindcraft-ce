@@ -1,1 +1,55 @@
-{"auto_open_ui": false, "host": "mc-echt26", "port": 25565, "minecraft_version": "26.3", "profiles": ["./lauf/profiles/mindce.json"], "base_profile": "survival", "use_function_calling": true, "use_brain_agent": true, "use_rp_agent": false, "tool_narration": "periodic", "allow_insecure_coding": false, "init_message": "Say hello in German. Always talk German with players. Wait for tasks.", "protected_areas": [{"name": "Lars Haus", "x": 268, "z": -160, "radius": 40}], "protection_admins": ["HiImCheeZy"]}
+{
+ "auto_open_ui": false,
+ "host": "mc-echt26",
+ "port": 25565,
+ "minecraft_version": "26.3",
+ "profiles": [
+  "./lauf/profiles/mindce.json"
+ ],
+ "base_profile": "survival",
+ "use_function_calling": true,
+ "use_brain_agent": true,
+ "use_rp_agent": false,
+ "tool_narration": "periodic",
+ "allow_insecure_coding": false,
+ "init_message": "Say hello in German. Always talk German with players. Wait for tasks.",
+ "protected_areas": [
+  {
+   "name": "Lars Haus",
+   "x": 268,
+   "z": -160,
+   "radius": 40
+  }
+ ],
+ "protection_admins": [
+  "HiImCheeZy"
+ ],
+ "blocked_actions": [
+  "!checkBlueprint",
+  "!checkBlueprintLevel",
+  "!getBlueprint",
+  "!getBlueprintLevel",
+  "!tradeWithVillager",
+  "!showVillagerTrades",
+  "!lookAtPlayer",
+  "!lookAtPosition",
+  "!startConversation",
+  "!endConversation",
+  "!setMode",
+  "!endGoal",
+  "!stfu",
+  "!restart",
+  "!clearChat",
+  "!searchSkills",
+  "!attackPlayer",
+  "!newAction"
+ ],
+ "npc_language": "de",
+ "pause_without_players": false,
+ "ignore_players": [],
+ "usage_budget": {
+  "usd_per_session": null,
+  "usd_per_day": null,
+  "tokens_per_hour": 1000000
+ }
+}

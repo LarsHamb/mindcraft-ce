@@ -295,5 +295,20 @@
         "type": "string",
         "default": "",
         "description": "Folder with cached Microsoft login tokens (auth: microsoft). Empty uses the default."
+    },
+    "npc_language": {
+        "type": "string",
+        "default": "en",
+        "description": "\"de\" turns the fixed chat sentences (narration fallbacks, mode messages) into German."
+    },
+    "pause_without_players": {
+        "type": "boolean",
+        "default": false,
+        "description": "Pause all model requests while no real player is online."
+    },
+    "ignore_players": {
+        "type": "array",
+        "default": [],
+        "description": "Player names that do not count as online players (other bots)."
     }
 }
