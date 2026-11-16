@@ -13,6 +13,7 @@ import path from 'node:path';
 import Vec3 from 'vec3';
 import settings from '../settings.js';
 import { LOG, createTreeCheck } from './natural_tree.js';
+import { dangerStepCost } from './danger.js';
 
 export const BUILDING = new RegExp([
     '_planks$', '_stairs$', '_slab$', '(^|_)glass$', 'glass_pane$', '_wool$', '_carpet$', '_concrete$',
@@ -209,6 +210,22 @@ export function isHarvestableLog(bot, block) {
     return !!block?.position && LOG.test(block.name) && breakRefusal(bot, block) === null;
 }
 
+// How far the bot would fall if this block (the one it stands on) were broken. 0 if it is not under its feet.
+export function dropBelowIfDug(bot, block) {
+    const me = bot.entity?.position;
+    if (!me || !block?.position) return 0;
+    const p = block.position;
+    if (!(p.x === Math.floor(me.x) && p.z === Math.floor(me.z) && p.y === Math.floor(me.y) - 1)) return 0;
+    let drop = 1;
+    for (let y = p.y - 1; y > p.y - 40; y--) {
+        const b = bot.blockAt(new Vec3(p.x, y, p.z));
+        if (!b) return 0; // unloaded: do not guess
+        if (b.boundingBox !== 'empty' || /water/.test(b.name)) break;
+        drop++;
+    }
+    return drop;
+}
+
 function refusal(what, pos, reason) {
     const err = new Error(`${what} at ${Math.floor(pos.x)}, ${Math.floor(pos.y)}, ${Math.floor(pos.z)} refused: ${reason}. Leave other players' builds alone and work elsewhere.`);
     err.code = 'protected';
@@ -220,6 +237,10 @@ function guardMovements(bot, movements) {
     // building blocks: never; natural blocks inside a protected area: allowed but expensive (prefer a detour)
     movements.exclusionAreasBreak?.push(block => (breakRefusal(bot, block) ? 100000 : block?.position && protectedAreaAt(bot, block.position) ? 40 : 0));
     movements.exclusionAreasPlace?.push(block => (block?.position && protectedAreaAt(bot, block.position) ? 100000 : 0));
+    // pillager zones: route around them
+    movements.exclusionAreasStep?.push(block => dangerStepCost(bot, block));
+    // no planned drops that hurt (it died from "hit the ground too hard" once)
+    if (typeof movements.maxDropDown === 'number') movements.maxDropDown = Math.min(movements.maxDropDown, 3);
     movements.__protected = true;
     return movements;
 }
@@ -303,6 +324,12 @@ export function installProtection(bot) {
         bot.dig = async function (block, ...rest) {
             const reason = breakRefusal(bot, block);
             if (reason) throw refusal(`Breaking ${block.name}`, block.position, reason);
+            const drop = dropBelowIfDug(bot, block);
+            if (drop > 3) {
+                const err = new Error(`Breaking ${block.name} under your feet would drop you ${drop} blocks. Climb down first (step down the tree trunk or dig a stair) instead of breaking what you stand on.`);
+                err.code = 'fall_danger';
+                throw err;
+            }
             const entry = restoreEntryFor(bot, block);
             const result = await dig.call(this, block, ...rest);
             if (s.own.delete(key(block.position))) s.saveOwn();

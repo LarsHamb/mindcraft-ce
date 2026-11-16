@@ -21,11 +21,17 @@
         "Mines: use digStairs (straight, 45 degrees, 3 blocks headroom, torches). Avoid caves, wall off water.",
         "Put torches around your home so no monsters spawn there.",
         "Never touch other players' builds, their animals in pens, or protected areas. Log walls are buildings, not trees.",
-        "A player's one-off experiment is not a rule (smelting kelp for XP wastes coal)."
+        "A player's one-off experiment is not a rule (smelting kelp for XP wastes coal).",
+        "Pillagers, skeletons and witches shoot from far: never walk towards them, keep away from danger zones you announced, fight only melee mobs.",
+        "Never break the block you stand on high up (leaves, tree tops); climb down the trunk or dig a stair first.",
+        "Keep at least 5 cooked food. When hunger drops to 15 or less, get food before anything else.",
+        "Before night: be in your shelter, build one with buildShelter, or dig in. On day one: wood, crafting table, wooden then stone tools, food, shelter - in that order.",
+        "Avoid deep water; never fight in water."
     ],
     "task_knowledge": [
         "For mines call digStairs, never digDown.",
         "Other players' builds and log walls are off limits; tools refuse them. Then pick another target instead of retrying.",
-        "Before taskDone, check the result in the world (inventory, built blocks); do not report work you did not verify."
+        "Before taskDone, check the result in the world (inventory, built blocks); do not report work you did not verify.",
+        "Ranged mobs (pillager, skeleton): do not approach, move away. Never break the block under your feet when high up."
     ]
 }

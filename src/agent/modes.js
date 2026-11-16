@@ -5,6 +5,8 @@ import settings from './settings.js'
 import convoManager from './conversation.js';
 import { protectedAreaAt, dueRestores, finishRestore } from './library/protection.js';
 import Vec3 from 'vec3';
+import pf from 'mineflayer-pathfinder';
+import { RANGED, ILLAGERS, markIllagers, dangerAt } from './library/danger.js';
 
 async function say(agent, message) {
     agent.bot.modes.behavior_log += message + '\n';
@@ -38,28 +40,61 @@ const modes_list = [
             if (!block) block = {name: 'air'}; // hacky fix when blocks are not loaded
             if (!blockAbove) blockAbove = {name: 'air'};
             const oxygen = Number.isFinite(bot.oxygenLevel) ? bot.oxygenLevel : 20;
-            // head under water: also count the time, in case the air value is missing or stale
-            if (blockAbove.name === 'water') this.underwaterSince ||= Date.now(); else this.underwaterSince = 0;
+            // head under water (also in kelp, seagrass, bubble columns): count the time as well, in case the air value is stale
+            const headWet = isWaterish(blockAbove);
+            if (headWet) this.underwaterSince ||= Date.now(); else this.underwaterSince = 0;
             const underwaterMs = this.underwaterSince ? Date.now() - this.underwaterSince : 0;
-            if (blockAbove.name === 'water' && (oxygen < 8 || underwaterMs > 7000) && !this.surfacing) {
-                // running out of air: drop the current goal and swim straight up until the head is out
+            if (headWet && (oxygen < 14 || underwaterMs > 4000) && !this.surfacing) {
+                // Drowned once during a task although this fired: the pvp plugin kept pulling it to a pig under
+                // water and the emergency window ran out. Now: stop fighting and walking, keep the window open
+                // while under water, and swim to the nearest air above water if going straight up does not work.
                 say(agent, 'I need air!');
-                agent.emergencyUntil = Date.now() + 12000;
+                agent.emergencyUntil = Date.now() + 15000;
                 this.surfacing = true;
                 execute(this, agent, async () => {
+                    try { bot.pvp?.stop?.(); } catch {}
                     bot.pathfinder.setGoal(null);
-                    bot.setControlState('jump', true);
                     bot.setControlState('forward', false);
+                    bot.setControlState('jump', true);
                     await bot.look(bot.entity.yaw, Math.PI / 2, true).catch(() => {});
-                    const until = Date.now() + 10000;
-                    while (Date.now() < until && bot.blockAt(bot.entity.position.offset(0, 1, 0))?.name === 'water')
-                        await new Promise(r => setTimeout(r, 200));
+                    const start = Date.now(), until = start + 25000;
+                    let target = null, lastY = bot.entity.position.y, stillSince = Date.now();
+                    while (Date.now() < until && isWaterish(bot.blockAt(bot.entity.position.offset(0, 1, 0)))) {
+                        agent.emergencyUntil = Date.now() + 3000;
+                        const pos = bot.entity.position;
+                        if (pos.y > lastY + 0.3) { lastY = pos.y; stillSince = Date.now(); }
+                        // not rising for 1.5 s: ceiling or current. Swim (no pathfinder: it cannot plan under water
+                        // and lets go of jump, so the bot sank) towards the nearest air above water.
+                        if (!target && Date.now() - stillSince > 1500) {
+                            target = nearestAirAboveWater(bot, 16);
+                            // no reachable air: dig through the ceiling above the head (slow under water, last resort)
+                            if (!target) {
+                                const ceiling = bot.blockAt(pos.floored().offset(0, 2, 0));
+                                if (ceiling && ceiling.boundingBox === 'block' && !/bedrock|obsidian/.test(ceiling.name)) await bot.dig(ceiling, true).catch(() => {});
+                                stillSince = Date.now();
+                                continue;
+                            }
+                        }
+                        if (target) {
+                            // follow the water path node by node (head height), then rise at the open spot
+                            const path = target.path;
+                            while (path.length > 1 && Math.hypot(path[0].x + 0.5 - pos.x, path[0].z + 0.5 - pos.z) < 0.6) path.shift();
+                            const next = path[0];
+                            const dx = next.x + 0.5 - pos.x, dz = next.z + 0.5 - pos.z;
+                            const far = Math.hypot(dx, dz) > 0.5;
+                            if (far) await bot.look(Math.atan2(-dx, -dz), 0, true).catch(() => {});
+                            bot.setControlState('forward', far);
+                            bot.setControlState('sprint', false);
+                        }
+                        bot.setControlState('jump', true);
+                        await new Promise(r => setTimeout(r, 150));
+                    }
+                    bot.setControlState('forward', false);
+                    bot.setControlState('sprint', false);
                     bot.setControlState('jump', false);
-                    // still under water (deep pit, ceiling): head for the nearest air above water
-                    if (bot.blockAt(bot.entity.position.offset(0, 1, 0))?.name === 'water') await skills.goToSurface(bot).catch(() => false);
-                }).finally(() => { this.surfacing = false; agent.emergencyUntil = 0; });
+                }).finally(() => { this.surfacing = false; agent.emergencyUntil = Date.now() + 2000; });
             }
-            else if (blockAbove.name === 'water') {
+            else if (headWet) {
                 // does not call execute so does not interrupt other actions
                 if (!bot.pathfinder.goal) {
                     bot.setControlState('jump', true);
@@ -110,6 +145,46 @@ const modes_list = [
             else if (agent.isIdle()) {
                 bot.clearControlStates(); // clear jump if not in danger or doing anything else
             }
+        }
+    },
+    {
+        // Shot twice by pillagers (Boys server, 17.11.): ranged mobs are fled from early instead of fought,
+        // and where illagers are, a danger zone keeps the pathfinder (and the bot) away for a while.
+        name: 'ranged_threat',
+        description: 'Flee early from ranged mobs (pillagers, skeletons, witches) and mark pillager areas as danger zones. Interrupts all actions.',
+        interrupts: ['all'],
+        on: true,
+        active: false,
+        lastFlee: 0,
+        update: async function (agent) {
+            const bot = agent.bot;
+            const me = bot.entity.position;
+            const near = Object.values(bot.entities).filter(e => e !== bot.entity && e.position && e.position.distanceTo(me) <= 40
+                && (RANGED.has(e.name) || ILLAGERS.has(e.name)));
+            if (!near.length) return;
+            const zone = markIllagers(bot, near);
+            if (zone) say(agent, `Achtung, ${zone.name === 'pillagers' ? 'Pillager' : 'ein Pillager-Lager'} bei ${zone.x} / ${zone.z}. Ich halte Abstand.`);
+            const closest = near.reduce((a, b) => (a.position.distanceTo(me) <= b.position.distanceTo(me) ? a : b));
+            const d = closest.position.distanceTo(me);
+            // skeletons are everywhere at night: flee from them only when close; illagers always
+            const flee = ILLAGERS.has(closest.name) ? d <= 40 : d <= 20;
+            if (!flee || Date.now() - this.lastFlee < 3000) return;
+            this.lastFlee = Date.now();
+            say(agent, `Aaa! A ${closest.name}!`);
+            agent.emergencyUntil = Date.now() + 15000;
+            execute(this, agent, async () => {
+                try { bot.pvp?.stop?.(); } catch {}
+                const goal = new pf.goals.GoalInvert(new pf.goals.GoalFollow(closest, 48));
+                bot.pathfinder.setMovements(new pf.Movements(bot));
+                bot.pathfinder.setGoal(goal, true);
+                const until = Date.now() + 14000;
+                while (Date.now() < until && !bot.interrupt_code) {
+                    agent.emergencyUntil = Date.now() + 3000;
+                    if (!closest.isValid || closest.position.distanceTo(bot.entity.position) > 48) break;
+                    await new Promise(r => setTimeout(r, 300));
+                }
+                bot.pathfinder.setGoal(null);
+            }).finally(() => { agent.emergencyUntil = Date.now() + 1000; });
         }
     },
     {
@@ -229,6 +304,33 @@ const modes_list = [
         }
     },
     {
+        // Boys server, 17.11.: hunger got critical before it had food, and the first night came without
+        // tools or shelter. This only wakes Brain early (no action of its own).
+        name: 'needs_watch',
+        description: 'Remind the planner early about food and the coming night.',
+        interrupts: ['all'],
+        on: true,
+        active: false,
+        lastFood: 0,
+        duskDay: -1,
+        update: async function (agent) {
+            const bot = agent.bot;
+            const wake = msg => agent.agentSystem?.wake?.('system', msg);
+            const foods = bot.registry?.foodsByName || {};
+            const food = bot.inventory.items().filter(i => foods[i.name] && !/rotten_flesh|spider_eye|poisonous_potato|pufferfish|^chicken$/.test(i.name))
+                .reduce((n, i) => n + i.count, 0);
+            if (food < 3 && bot.food <= 15 && Date.now() - this.lastFood > 5 * 60000) {
+                this.lastFood = Date.now();
+                wake(`Hunger ${bot.food}/20 and only ${food} food left. Secure food now (hunt and cook, bread, apples) before other work; keep at least 5 cooked food.`);
+            }
+            const t = bot.time?.timeOfDay, day = bot.time?.day;
+            if (Number.isFinite(t) && t >= 11000 && t < 12500 && day !== this.duskDay) {
+                this.duskDay = day;
+                wake('Night falls in about a minute. Go to your shelter, or build one now with buildShelter, or dig in; put torches around it. Do not stay in the open.');
+            }
+        }
+    },
+    {
         name: 'torch_placing',
         description: 'Place torches when idle and there are no torches nearby.',
         interrupts: ['action:followPlayer'],
@@ -314,6 +416,37 @@ const modes_list = [
         update: function (agent) { /* do nothing */ }
     }
 ];
+
+function isWaterish(block) {
+    if (!block) return false;
+    return /^(water|bubble_column|kelp|kelp_plant|seagrass|tall_seagrass)$/.test(block.name) || block.getProperties?.()?.waterlogged === true;
+}
+
+// Nearest water block with air above it that can be reached by swimming: a search through connected
+// water from the bot (a plain "nearest air" picked a pond behind a wall once, and the bot drowned at it).
+export function nearestAirAboveWater(bot, range, maxNodes = 1500) {
+    const start = bot.entity.position.floored().offset(0, 1, 0); // head block
+    const k = p => `${p.x},${p.y},${p.z}`;
+    const parent = new Map([[k(start), null]]);
+    const queue = [start];
+    for (let i = 0; i < queue.length && i < maxNodes; i++) {
+        const p = queue[i];
+        const above = bot.blockAt(p.offset(0, 1, 0));
+        if (above && /^(air|cave_air)$/.test(above.name)) {
+            const path = [];
+            for (let n = p; n; n = parent.get(k(n))) path.unshift(n);
+            return {target: p, path};
+        }
+        for (const [dx, dy, dz] of [[0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0]]) {
+            const q = p.offset(dx, dy, dz);
+            if (Math.abs(q.x - start.x) > range || Math.abs(q.z - start.z) > range || Math.abs(q.y - start.y) > range) continue;
+            if (parent.has(k(q))) continue;
+            parent.set(k(q), p);
+            if (isWaterish(bot.blockAt(q))) queue.push(q);
+        }
+    }
+    return null;
+}
 
 async function placeRestores(bot, entries) {
     let placed = 0;
