@@ -8,7 +8,7 @@ case "$MAX" in ''|*[!0-9]*) MAX=900 ;; esac
 SERVERLOG=${SERVERLOG:-$HOME/minecraft/logs/latest.log}
 
 gespraech() {
-  a=$(docker logs --since 5m mindcraft-live-bot 2>&1 | grep "received message from" | grep -vc "from system|from ADMIN|from Server"\|from ADMIN")
+  a=$(docker logs --since 5m mindcraft-live-bot 2>&1 | grep "received message from" | grep -vc "from system\|from ADMIN\|from Server")
   c=$(python3 - "$SERVERLOG" <<'EOF'
 import sys, re, datetime
 now = datetime.datetime.now(); n = 0
