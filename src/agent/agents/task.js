@@ -37,15 +37,21 @@ export class TaskAgent {
     async performTask(description, systemPrompt='', directive={}) {
         if(this.is_running) throw new Error('A task is already running');
         this.is_running=true;this.cancelJob=false;this.currentTaskDescription=description;this.currentStep=0;
-        this.allowedTools=Array.isArray(directive.tools)?new Set(directive.tools):null;
+        // Without a grant from Brain, send the usual actions only (settings.task_default_tools); requestTools adds more.
+        // The full list was 70 % of every task request.
+        const defaults=settings.task_default_tools;
+        this.allowedTools=Array.isArray(directive.tools)?new Set(directive.tools):Array.isArray(defaults)&&defaults.length?new Set(defaults):null;
         this.directive=directive;
         try {
             this.model=this.agent.prompter.selectTaskModel?.(directive.model||this.agent.prompter.model_selection?.default_task_model)
                 ||this.agent.prompter.task_model||this.agent.prompter.chat_model;
             const template=this.agent.prompter.profile.task_agent||'';
             const header=template?await this.agent.prompter.replaceStrings(template,[]):'';
-            const prompt=`${header}\n${systemPrompt}\nUse native tools. Call taskDone when the assigned objective is verified complete, or taskBlocked with a specific blocker.\nObjective: ${description}`;
-            return await this.runLoop([{role:'user',content:description}],prompt,false);
+            // The system prompt stays identical for every task, so Gemini's cache can reuse it; what changes
+            // per task (objective, briefing, constraints) goes into the first message.
+            const prompt=`${header}\nUse native tools. Call taskDone when the assigned objective is verified complete, or taskBlocked with a specific blocker.${this.allowedTools&&!Array.isArray(directive.tools)?' Only common actions are listed; call requestTools for others (e.g. placeBlockAt, digDown, useOn, discard).':''}`;
+            const first=[`Objective: ${description}`,systemPrompt].filter(Boolean).join('\n');
+            return await this.runLoop([{role:'user',content:first}],prompt,false);
         } finally {
             this.is_running=false;this.currentTaskDescription=null;this.currentStep=0;
         }
@@ -126,6 +132,7 @@ export class TaskAgent {
                     history.push({role:'tool',name:call.name,tool_call_id:call.id,content});
                     await this.agent.history?.add('system',`${call.name}: ${content}`);
                     this.lastResults.push({name:call.name,...result});this.lastResults=this.lastResults.slice(-8);
+                    if(!control) {this.lastResultAt=Date.now();this.lastResultOk=['ok','partial'].includes(result?.status);}
                     // put back nearby blocks it broke (protected areas, surface holes, saplings) without a model request
                     if(!control&&!this.cancelJob) await restoreBetweenTools(this.agent).catch(error=>console.warn('restore:',error.message));
                     if(!control) await narrator.afterTool(result,call);

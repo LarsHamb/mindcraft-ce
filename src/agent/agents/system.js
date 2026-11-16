@@ -234,6 +234,9 @@ export class AgentSystem {
         const seconds=this.agent.prompter.profile?.brain_check_in_seconds??settings.brain_check_in_seconds??60;
         if(seconds<=0||this.now()-this.lastCheck<seconds*1000) return;
         this.lastCheck=this.now();
+        // Task is making progress (a successful tool result within the period): no check-in needed.
+        // Brain wakes anyway on done, blocked, death and chat.
+        if(this.task?.lastResultOk&&this.now()-(this.task.lastResultAt||0)<seconds*1000) return;
         this.wake(this.currentDirective.source,`Periodic status: ${this.agent.actions.currentActionLabel||'awaiting Task response'}. ${this.agent.actions.progress?.message||''}`);
     }
     async reply(source,message,decision,interrupted) {

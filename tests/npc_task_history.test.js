@@ -29,3 +29,18 @@ test('long task histories keep the objective, a note and a tail without orphan t
     for (const m of c.filter(m => m.role === 'tool')) assert.ok(calls.has(m.tool_call_id));
     assert.equal(h.length, 61); // the loop's own history is not modified
 });
+
+test('brain sends only the recent tail, starting at a user message', async () => {
+    const { brainTail } = await import('../src/agent/agents/brain.js');
+    const h = [];
+    for (let i = 0; i < 30; i++) {
+        h.push({role: 'user', content: `u${i}`});
+        h.push({role: 'assistant', content: '', tool_calls: [{id: `b${i}`}]});
+        h.push({role: 'tool', tool_call_id: `b${i}`, content: 'ok'});
+    }
+    const t = brainTail(h);
+    assert.ok(t.length <= 12);
+    assert.equal(t[0].role, 'user');
+    assert.equal(t.at(-1).content, 'ok');
+    assert.equal(brainTail(h.slice(0, 6)).length, 6);
+});

@@ -42,7 +42,9 @@
   "!clearChat",
   "!searchSkills",
   "!attackPlayer",
-  "!newAction"
+  "!newAction",
+  "!help",
+  "!modes"
  ],
  "npc_language": "de",
  "pause_without_players": false,
@@ -53,5 +55,37 @@
   "tokens_per_hour": 1000000
  },
  "idle_wake_seconds": 180,
- "tool_narration_max_silence_seconds": 90
+ "tool_narration_max_silence_seconds": 90,
+ "task_default_tools": [
+  "collectBlocks",
+  "craftRecipe",
+  "smeltItem",
+  "clearFurnace",
+  "placeBlocks",
+  "placeHere",
+  "buildShelter",
+  "digStairs",
+  "goToCoordinates",
+  "goToPlayer",
+  "followPlayer",
+  "goToRememberedPlace",
+  "rememberHere",
+  "searchForBlock",
+  "searchForEntity",
+  "equip",
+  "consume",
+  "givePlayer",
+  "putInChest",
+  "takeFromChest",
+  "viewChest",
+  "attack",
+  "moveAway",
+  "goToSurface",
+  "goToBed",
+  "stay",
+  "stop"
+ ],
+ "summary_chunk_size": 14,
+ "max_messages": 20,
+ "brain_check_in_seconds": 120
 }

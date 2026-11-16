@@ -317,7 +317,10 @@ export class Prompter {
         await this.checkCooldown();
         let requestMessages = messages;
         if (this.agent.bot?.entity?.position && this.agent.bot?.inventory) {
-            const state = await this.replaceStrings('CURRENT STATE (fresh, takes precedence over older observations):\n$STATS\n$INVENTORY', []);
+            // Brain's summarized memory changes every few minutes: it goes here, at the end, not into the
+            // system prompt, so the fixed prompt prefix stays cacheable.
+            const memory = role === 'brain' && this.agent.history?.memory ? '\nSUMMARIZED MEMORY: $MEMORY' : '';
+            const state = await this.replaceStrings('CURRENT STATE (fresh, takes precedence over older observations):\n$STATS\n$INVENTORY' + memory, []);
             requestMessages = [...messages, {role:'user',content:state}];
         }
         if (epoch !== this.cancelEpoch || roleEpoch !== (this.roleEpochs.get(role) || 0)) throw new Error('Request cancelled');

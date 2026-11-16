@@ -12,5 +12,4 @@
     <rule>$NARRATION_RULES</rule>
   </rules>
   <knowledge>$BRAIN_KNOWLEDGE</knowledge>
-  <memory>$MEMORY</memory>
 </brain_agent_system>

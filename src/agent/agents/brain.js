@@ -17,6 +17,13 @@ export const brainTools=[
     functionTool('removeGoal','Remove a goal no longer wanted.',{name:{type:'string'}}),
 ];
 
+export const BRAIN_TAIL = 12;
+export function brainTail(history, keep = BRAIN_TAIL) {
+    if (history.length <= keep) return history;
+    const start = history.findIndex((m, i) => i >= history.length - keep && m.role === 'user');
+    return start > 0 ? history.slice(start) : history;
+}
+
 export class BrainAgent {
     constructor(agent,queue) {this.agent=agent;this.messageQueue=queue;this.goals=new Goals();this.message_history=[];this.active_goal=null;}
     async processRequest(source,message) {
@@ -26,7 +33,9 @@ export class BrainAgent {
             const next=this.message_history.findIndex((m,i)=>i>=this.message_history.length-40&&m.role==='user');
             if(next>0) this.message_history=this.message_history.slice(next);
         }
-        const [text,calls]=await this.agent.prompter.handleRequest('brain',this.message_history,brainTools);
+        // Every user message already carries goals, task and outcome, so the recent tail is enough: send at
+        // most the last BRAIN_TAIL messages, starting at a user message (no orphan tool results).
+        const [text,calls]=await this.agent.prompter.handleRequest('brain',brainTail(this.message_history),brainTools);
         this.message_history.push(toolCallMessage(text,calls));
         if(calls.length) return {route:'control',operations:calls,text};
         const parsed=parseObject(text);

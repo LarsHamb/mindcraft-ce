@@ -22,11 +22,10 @@ class DigStairsTool extends BaseTool {
     constructor() {
         super(
             "digStairs",
-            "Dig a straight mining staircase down at 45 degrees with 3 blocks of headroom, placing torches every 6 steps if you have them. " +
-            "Stops before water, lava or an open cave and reports it. Use this instead of digDown for mines.",
+            "Dig a straight 45-degree mine staircase down (3 high, torches, walls off water). Use for mines instead of digDown.",
             [
-                new CommandProperty("direction", "north, south, east or west. Default: the direction you are facing.", "string", false),
-                new CommandProperty("steps", "How many steps down (1-40). Each step goes one block down and one forward.", "integer", false),
+                new CommandProperty("direction", "north/south/east/west, default facing.", "string", false),
+                new CommandProperty("steps", "1-40.", "integer", false),
             ]
         );
     }

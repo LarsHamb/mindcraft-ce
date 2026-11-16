@@ -22,11 +22,10 @@ class PlaceBlocksTool extends BaseTool {
     constructor() {
         super(
             "placeBlocks",
-            "Place one block type at MANY coordinates in ONE call (up to 128). Order them bottom-up so each block has support. " +
-            "Use this instead of repeated placeBlockAt calls. Returns how many were placed and which failed.",
+            "Place one block type at many coordinates in one call (max 128, bottom-up).",
             [
-                new CommandProperty("type", "The block type to place, e.g. oak_planks.", "string", true),
-                new CommandProperty("positions", "Coordinates as 'x,y,z; x,y,z; ...'.", "string", true),
+                new CommandProperty("type", "Block type.", "string", true),
+                new CommandProperty("positions", "'x,y,z; x,y,z'", "string", true),
             ]
         );
     }

@@ -315,5 +315,15 @@
         "type": "number",
         "default": 0,
         "description": "Brain mode: wake Brain after this many idle seconds without task or answer, so a free-living bot continues its plan. 0 = off."
+    },
+    "task_default_tools": {
+        "type": "array",
+        "default": [],
+        "description": "Task actions sent when Brain grants none; others via requestTools. Empty = all."
+    },
+    "summary_chunk_size": {
+        "type": "number",
+        "default": 5,
+        "description": "History entries summarized at once into memory; larger = fewer summary requests."
     }
 }

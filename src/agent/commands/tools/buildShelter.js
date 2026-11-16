@@ -64,17 +64,15 @@ class BuildShelterTool extends BaseTool {
     constructor() {
         super(
             "buildShelter",
-            "Build a complete small shelter (walls, flat roof, door opening) next to you in ONE call, then verify it. " +
-            "Uses building blocks from your inventory (planks, cobblestone, dirt, ...). Inner size 3x3 needs about 41 blocks. " +
-            "Use this instead of many placeBlockAt calls. Reports missing blocks or holes if it could not finish.",
+            "Build a whole small shelter (walls, roof, door gap) beside you in one call and verify it. 3x3 needs ~41 blocks from inventory.",
             [
-                new CommandProperty("material", "Preferred block, e.g. oak_planks or cobblestone. 'auto' uses what you have most of.", "string", false),
-                new CommandProperty("width", "Inner width (2-5). Default 3.", "integer", false),
-                new CommandProperty("depth", "Inner depth (2-5). Default 3.", "integer", false),
-                new CommandProperty("height", "Wall height (2-4). Default 3.", "integer", false),
-                new CommandProperty("x", "Optional build origin x (from an earlier buildShelter result, to continue the same shelter).", "integer", false),
-                new CommandProperty("y", "Optional build origin y.", "integer", false),
-                new CommandProperty("z", "Optional build origin z.", "integer", false),
+                new CommandProperty("material", "Block, or auto.", "string", false),
+                new CommandProperty("width", "2-5, default 3.", "integer", false),
+                new CommandProperty("depth", "2-5, default 3.", "integer", false),
+                new CommandProperty("height", "2-4, default 3.", "integer", false),
+                new CommandProperty("x", "Origin from an earlier result, to continue.", "integer", false),
+                new CommandProperty("y", "Origin y.", "integer", false),
+                new CommandProperty("z", "Origin z.", "integer", false),
             ]
         );
     }
