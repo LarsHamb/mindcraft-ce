@@ -64,6 +64,7 @@ class DigStairsTool extends BaseTool {
                 }
                 if (!await skills.goToPosition(bot, x + 0.5, y, z + 0.5, 0.6)) return toolResult(done ? 'partial' : 'failed', `Could not step down to ${x},${y},${z} after ${done} steps.`, 'move_failed');
                 done = i;
+                bot.emit('mining_progress', {message: `Dug ${done} of ${steps} stair steps.`});
                 if (i % 6 === 0 && bot.inventory.findInventoryItem('torch')) {
                     // torch high on the side wall of this step (y+2): the next step digs (x, y+1, z) for headroom,
                     // but never y+2 here, so the torch stays

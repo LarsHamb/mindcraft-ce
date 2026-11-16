@@ -84,7 +84,8 @@ test('legacy provider calls without exposed metadata remain counted and nested S
 });
 test('missing token counts and unpriced daily usage cannot bypass caps across restart',()=>{
     let now=10000000;const tokens=new UsageMeter({tokens_per_hour:100},{now:()=>now});
-    tokens.record({usage:{cost:0}});assert.throws(()=>tokens.assertAvailable(),/did not report token counts/);
+    // missing counts are estimated (4000 without history), so a tiny cap still stops further calls
+    tokens.record({usage:{cost:0}});assert.throws(()=>tokens.assertAvailable(),/budget reached/);
     now+=3600001;assert.doesNotThrow(()=>tokens.assertAvailable());
     const dir=mkdtempSync(path.join(tmpdir(),'ce-unknown-price-'));const file=path.join(dir,'usage.json');
     try {

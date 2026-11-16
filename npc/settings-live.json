@@ -1,0 +1,27 @@
+{
+ "auto_open_ui": false,
+ "host": "192.168.178.80",
+ "port": 11116,
+ "minecraft_version": "26.3",
+ "profiles": [
+  "./lauf/profiles/cheesynpc.json"
+ ],
+ "base_profile": "survival",
+ "use_function_calling": true,
+ "use_brain_agent": true,
+ "use_rp_agent": false,
+ "tool_narration": "periodic",
+ "allow_insecure_coding": false,
+ "init_message": "Say hello in German. Always talk German with players.",
+ "protected_areas": [],
+ "protection_admins": [
+  "HiImCheeZy"
+ ],
+ "auth": "microsoft",
+ "profiles_folder": "/auth",
+ "usage_budget": {
+  "usd_per_session": null,
+  "usd_per_day": null,
+  "tokens_per_hour": 1000000
+ }
+}

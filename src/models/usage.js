@@ -56,7 +56,13 @@ export class UsageMeter {
         this.calls++;this.sessionCost+=usage.cost||0;this.dayCost+=usage.cost||0;
         const u=response.usage||response.usageMetadata||{};
         const unknownTokens=![u.input_tokens,u.prompt_tokens,u.promptTokenCount,response.prompt_eval_count,u.output_tokens,u.completion_tokens,u.candidatesTokenCount,response.eval_count].some(Number.isFinite);
-        this.events.push({at:this.now(),tokens:usage.input+usage.output,unknownTokens});
+        // A call without token counts (e.g. the legacy text path used for memory summaries) is estimated from
+        // recent known calls instead of blocking every later request for an hour. Thinking tokens count too.
+        const thoughts=Number.isFinite(u.thoughtsTokenCount)?u.thoughtsTokenCount:0;
+        const known=this.events.filter(e=>!e.unknownTokens&&!e.estimated).slice(-20);
+        const estimate=known.length?Math.round(known.reduce((n,e)=>n+e.tokens,0)/known.length):4000;
+        this.events.push(unknownTokens?{at:this.now(),tokens:estimate,estimated:true,unknownTokens:false}
+            :{at:this.now(),tokens:usage.input+usage.output+thoughts,unknownTokens:false});
         if(this.file) {try {mkdirSync(path.dirname(this.file),{recursive:true});appendFileSync(path.join(path.dirname(this.file),'usage-log.jsonl'),JSON.stringify({at:this.now(),role,input:usage.input,cached:usage.cached,output:usage.output,thoughts:u.thoughtsTokenCount??u.output_tokens_details?.reasoning_tokens??0,latencyMs})+'\n');} catch {}}
         const totals=this.byRole[role]||={calls:0,input:0,output:0,cached:0,cost:0,latencyMs:0,pricedCalls:0};
         totals.calls++;for(const key of ['input','output','cached']) totals[key]+=usage[key];

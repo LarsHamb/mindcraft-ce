@@ -100,7 +100,7 @@ class BuildShelterTool extends BaseTool {
             for (const q of plan.clear) {
                 if (bot.interrupt_code) return toolResult('cancelled', 'Stopped while clearing.', 'interrupted');
                 const b = at(q);
-                if (b && b.name !== 'air' && b.name !== 'cave_air' && b.name !== 'water') await skills.breakBlockAt(bot, q.x, q.y, q.z);
+                if (b && b.name !== 'air' && b.name !== 'cave_air' && b.name !== 'water') { await skills.breakBlockAt(bot, q.x, q.y, q.z); bot.emit('mining_progress', {message: 'Clearing the shelter floor.'}); }
             }
             let placed = 0, failed = 0;
             for (const q of [...plan.walls, ...plan.roof]) {
@@ -110,6 +110,8 @@ class BuildShelterTool extends BaseTool {
                 if (!left.length) break;
                 const ok = await skills.placeBlock(bot, left[0][0], q.x, q.y, q.z, 'bottom', true);
                 if (ok) placed++; else failed++;
+                // tell the stuck watchdog we are working although we barely move
+                bot.emit('mining_progress', {message: `Building shelter: ${placed} blocks placed.`});
                 if (failed >= 12 && placed === 0) break;
             }
             // door if we have one

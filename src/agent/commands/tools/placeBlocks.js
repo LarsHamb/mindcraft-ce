@@ -47,6 +47,8 @@ class PlaceBlocksTool extends BaseTool {
                 const ok = await skills.placeBlock(bot, type, q.x, q.y, q.z, 'bottom', true);
                 const now = bot.blockAt(new Vec3(q.x, q.y, q.z));
                 if (ok && now && now.name !== 'air') placed++; else failed.push(q);
+                // tell the stuck watchdog we are working although we barely move
+                bot.emit('mining_progress', {message: `Placed ${placed} of ${list.length} ${type}.`});
             }
             if (!failed.length) return toolResult('ok', `Placed all ${placed} ${type}.`);
             const sample = failed.slice(0, 8).map(q => `${q.x},${q.y},${q.z}`).join('; ');

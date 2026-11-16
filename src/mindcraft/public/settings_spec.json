@@ -290,5 +290,10 @@
         "type": "array",
         "default": [],
         "description": "Players who may remove any protected area set in chat."
+    },
+    "profiles_folder": {
+        "type": "string",
+        "default": "",
+        "description": "Folder with cached Microsoft login tokens (auth: microsoft). Empty uses the default."
     }
 }
