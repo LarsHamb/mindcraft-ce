@@ -32,6 +32,8 @@ new = """      if (this.componentMap?.has(componentType)) {
 assert s.count(old) == 1, "prismarine-item: Stelle nicht gefunden"
 open(p, "w").write(s.replace(old, new))
 EOF
+# Chat-Pruefsumme (1.21.5+): Reihenfolge ab dem aeltesten Eintrag wie vanilla (sonst Kick nach 20 Chatnachrichten)
+cp "$HOME/mindcraft-ce/npc/checksums.cjs" mineflayer/node_modules/minecraft-protocol/src/datatypes/checksums.js
 cat > "$B/Dockerfile" <<'EOF'
 FROM mindcraft-ce-test
 RUN rm -rf /app/node_modules/mineflayer /app/node_modules/minecraft-data /app/node_modules/minecraft-data-base
