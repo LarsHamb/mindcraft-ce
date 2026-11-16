@@ -48,5 +48,6 @@
  "pause_without_players": true,
  "ignore_players": [],
  "idle_wake_seconds": 180,
- "tool_narration_max_silence_seconds": 90
+ "tool_narration_max_silence_seconds": 90,
+ "load_memory": true
 }
