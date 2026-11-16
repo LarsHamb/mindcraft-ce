@@ -14,3 +14,5 @@
 - `!schutz weg`: entfernt die Zone, in der man steht (nur wer sie gesetzt hat oder `protection_admins`).
 - `!schutz liste`: zeigt alle Zonen.
 Keine dieser Nachrichten geht an das Modell.
+- Betten: Ein Bett, das nicht vom Bot stammt, bekommt automatisch eine Zone mit Radius 40. Ausnahme Dorf: Glocke, Dorfbewohner oder viele Trampelpfade in der Naehe. Wegpunkte mit Bett, Betten oder Bed im Namen zaehlen wie Base.
+- `sicher-neustarten-live.sh [s]`: Neustart des Live-Bots nur ohne Chat in den letzten 5 min.

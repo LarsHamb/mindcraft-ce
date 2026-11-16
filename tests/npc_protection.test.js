@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import Vec3 from 'vec3';
+import { readFileSync } from 'node:fs';
 import settings from '../src/agent/settings.js';
 import { detectTree } from '../src/agent/library/natural_tree.js';
-import { breakRefusal, isHarvestableLog, protectedAreaAt, detectBuiltAreas, BUILDING } from '../src/agent/library/protection.js';
+import { breakRefusal, isHarvestableLog, protectedAreaAt, detectBuiltAreas, detectBeds, pruneBuiltAreas, BUILDING } from '../src/agent/library/protection.js';
 
 let botId = 0;
 function world() {
@@ -80,6 +81,31 @@ test('foreign building blocks are never broken; protected areas refuse', () => {
     assert.match(breakRefusal(bot, bot.blockAt(new Vec3(104, 61, 102))) || '', /player-built/);
     delete bot.entity;
     assert.equal(breakRefusal(bot, {name: 'stone', position: new Vec3(0, 0, 0)}), null);
+});
+
+test('a player bed protects radius 40, village beds and own beds do not', () => {
+    settings.protected_areas = [];
+    const {bot, set} = world();
+    set(5, 1, 5, 'red_bed'); set(5, 1, 6, 'red_bed');
+    bot.entities = {};
+    const area = detectBeds(bot);
+    assert.equal(area?.radius, 40);
+    assert.ok(protectedAreaAt(bot, {x: 40, y: 1, z: 5}));
+    // bed gone -> area gone
+    set(5, 1, 5, 'air'); set(5, 1, 6, 'air');
+    assert.equal(pruneBuiltAreas(bot), 1);
+    assert.equal(protectedAreaAt(bot, {x: 40, y: 1, z: 5}), null);
+    // the saved file follows (a pruned area must not come back after a restart)
+    assert.deepEqual(JSON.parse(readFileSync(`./bots/${bot.username}/built_areas.json`, 'utf8')), []);
+
+    const v = world();
+    v.set(-5, 1, -5, 'white_bed'); v.set(-5, 1, -4, 'white_bed'); v.set(-2, 1, -8, 'bell');
+    v.bot.entities = {};
+    assert.equal(detectBeds(v.bot), null);
+    const w = world();
+    w.set(-5, 1, -5, 'white_bed');
+    w.bot.entities = {1: {name: 'villager', position: new Vec3(-10, 1, -3)}};
+    assert.equal(detectBeds(w.bot), null);
 });
 
 test('a cluster of foreign building blocks becomes a protected area', () => {

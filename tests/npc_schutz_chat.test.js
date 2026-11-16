@@ -37,6 +37,8 @@ test('a shared waypoint becomes a protected area without a model request', () =>
     assert.equal(protectedAreaAt(bot, {x: 900, y: 12, z: 900}), null);
     assert.equal(handleProtectionChat(agent, 'Ali', 'xaero-waypoint:Alis Base:A:-800:70:-800:6:false:0:Internal-overworld-waypoints'), true);
     assert.ok(protectedAreaAt(bot, {x: -790, y: 70, z: -800}));
+    assert.equal(handleProtectionChat(agent, 'Ali', 'xaero-waypoint:Betten:B:300:70:300:6:false:0:Internal-overworld-waypoints'), true);
+    assert.ok(protectedAreaAt(bot, {x: 310, y: 70, z: 300}));
     // other dimension is not protected
     bot.game.dimension = 'the_nether';
     assert.equal(protectedAreaAt(bot, {x: 500, y: 70, z: 500}), null);

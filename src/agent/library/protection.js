@@ -54,7 +54,8 @@ function state(bot) {
         own, built, players, dir,
         savePlayers() { saveJson(`${dir}/player_areas.json`, s.players); },
         saveOwn() { while (own.size > MAX_OWN) own.delete(own.keys().next().value); saveJson(`${dir}/own_blocks.json`, Object.fromEntries(own)); },
-        saveBuilt() { saveJson(`${dir}/built_areas.json`, built); },
+        // s.built is replaced when areas are pruned: always save the current list
+        saveBuilt() { saveJson(`${dir}/built_areas.json`, s.built); },
     };
     // own building blocks next to a log also make it a beam: a log touching any plank is not a tree
     s.isTreeLog = createTreeCheck(bot, name => BUILDING.test(name));
@@ -147,10 +148,46 @@ export function detectBuiltAreas(bot) {
     return null;
 }
 
+// Fallback without a waypoint (Lars, 17.11.): a bed a player has placed protects radius BED_RADIUS around it.
+// Village beds do not count: a bell, a villager or several dirt paths nearby mark a village.
+export const BED_RADIUS = 40;
+const VILLAGE_SEARCH = 48;
+const isBed = name => /_bed$/.test(name || '');
+
+export function looksLikeVillage(bot, pos) {
+    const near = (p, d) => p && Math.abs(p.x - pos.x) <= d && Math.abs(p.z - pos.z) <= d;
+    if (Object.values(bot.entities || {}).some(e => e?.name === 'villager' && near(e.position, VILLAGE_SEARCH))) return true;
+    const blocks = (names, d, count) => (bot.findBlocks({matching: b => !!b && names.includes(b.name), maxDistance: d, count, point: pos}) || [])
+        .filter(p => near(p, d));
+    if (blocks(['bell'], VILLAGE_SEARCH, 1).length) return true;
+    return blocks(['dirt_path'], 24, 12).length >= 12;
+}
+
+export function detectBeds(bot) {
+    const s = state(bot);
+    const beds = (bot.findBlocks({matching: b => !!b && isBed(b.name), maxDistance: 32, count: 32}) || []);
+    for (const p of beds) {
+        // a bed is two blocks; only one of them was recorded when the bot placed it itself
+        const own = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => isBed(s.own.get(key({x: p.x + dx, y: p.y, z: p.z + dz}))));
+        if (own || protectedAreaAt(bot, p) || looksLikeVillage(bot, p)) continue;
+        const area = {name: `bed ${p.x},${p.z}`, kind: 'bed', bed: {x: p.x, y: p.y, z: p.z}, x: p.x, y: p.y, z: p.z, radius: BED_RADIUS, at: Date.now()};
+        s.built.push(area);
+        s.saveBuilt();
+        console.log(`Protection: player bed at ${p.x} ${p.y} ${p.z}, protected with radius ${BED_RADIUS}`);
+        return area;
+    }
+    return null;
+}
+
 // A detected area disappears when no foreign building block is left there (unloaded = unknown, keep it).
+// A bed area disappears when its bed is gone.
 export function pruneBuiltAreas(bot) {
     const s = state(bot);
     const gone = s.built.filter(a => {
+        if (a.kind === 'bed') {
+            const b = bot.blockAt(new Vec3(a.bed.x, a.bed.y, a.bed.z));
+            return !!b && !isBed(b.name);
+        }
         let unknown = false;
         for (let dx = -a.radius; dx <= a.radius; dx++) for (let dz = -a.radius; dz <= a.radius; dz++) for (let dy = -BUILT_HEIGHT; dy <= BUILT_HEIGHT; dy++) {
             const p = new Vec3(a.x + dx, a.y + dy, a.z + dz);
@@ -207,7 +244,7 @@ export function installProtection(bot) {
         if (bot.pathfinder.movements) guardMovements(bot, bot.pathfinder.movements);
     }
     const scan = setInterval(() => {
-        try { if (bot.entity) { detectBuiltAreas(bot); pruneBuiltAreas(bot); } } catch (e) { console.warn('protection scan:', e.message); }
+        try { if (bot.entity) { detectBeds(bot); detectBuiltAreas(bot); pruneBuiltAreas(bot); } } catch (e) { console.warn('protection scan:', e.message); }
     }, 20000);
     bot.once('end', () => clearInterval(scan));
     const manual = manualAreas();

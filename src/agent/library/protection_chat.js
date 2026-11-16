@@ -10,7 +10,7 @@ import { addPlayerArea, removePlayerAreaAt, listAreas, protectedAreaAt } from '.
 import settings from '../settings.js';
 
 const DEFAULT_RADIUS = 40, MIN_RADIUS = 5, MAX_RADIUS = 128;
-export const BASE_NAME = /(base|basis|haus|house|home|zuhause|heim)/i;
+export const BASE_NAME = /(base|basis|haus|house|home|zuhause|heim|bett|bed)/i;
 const WAYPOINT = /xaero-waypoint:([^:]*):([^:]*):(-?\d+|~):(-?\d+|~):(-?\d+|~):(\d+):(true|false):(-?\d+)(?::(\S+))?/i;
 
 export function parseXaeroWaypoint(message) {
