@@ -81,8 +81,12 @@ const PATTERNS = [
     [/^Hunting (.+)!$/, (m, e) => `Ich jage: ${mob(e)}.`],
 ];
 
+// Filler without information ("I'm heading to the next spot." every 30 s): not sent at all.
+const SILENT = new Set(["I've reached the next spot.", "I'm heading to the next spot.", "I'm working on the next step."]);
+
 export function germanize(text) {
     const t = String(text ?? '').trim();
+    if (SILENT.has(t)) return '';
     if (EXACT.has(t)) return EXACT.get(t);
     for (const [re, fn] of PATTERNS) {
         const m = re.exec(t);

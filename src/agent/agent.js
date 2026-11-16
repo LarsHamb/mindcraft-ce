@@ -423,6 +423,7 @@ export class Agent {
 
     async openChat(message) {
         if (settings.npc_language === 'de') message = germanize(message);
+        if (!String(message).trim()) return;
         // the same sentence twice within a minute is spam (e.g. a budget pause answered per message)
         const now = Date.now(), text = String(message).trim();
         if (this._lastChat && this._lastChat.text === text && now - this._lastChat.at < 60000) return;

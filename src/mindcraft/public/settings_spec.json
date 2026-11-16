@@ -310,5 +310,10 @@
         "type": "array",
         "default": [],
         "description": "Player names that do not count as online players (other bots)."
+    },
+    "idle_wake_seconds": {
+        "type": "number",
+        "default": 0,
+        "description": "Brain mode: wake Brain after this many idle seconds without task or answer, so a free-living bot continues its plan. 0 = off."
     }
 }

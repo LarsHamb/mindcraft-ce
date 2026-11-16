@@ -51,5 +51,7 @@
   "usd_per_session": null,
   "usd_per_day": null,
   "tokens_per_hour": 1000000
- }
+ },
+ "idle_wake_seconds": 180,
+ "tool_narration_max_silence_seconds": 90
 }

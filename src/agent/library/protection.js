@@ -92,7 +92,15 @@ export function breakRefusal(bot, block) {
     if (BUILDING.test(block.name)) return `${block.name} is player-built`;
     if (LOG.test(block.name) && !s.isTreeLog(block.position)) return `${block.name} is not part of a natural tree (log wall or building)`;
     const area = protectedAreaAt(bot, block.position);
-    if (area) return `protected area "${area.name || 'player base'}"`;
+    if (area) {
+        // Way out: standing inside the area, natural blocks right next to the bot may be broken so it can
+        // climb or dig out (it got trapped in a pit once). Building blocks and log walls stay refused above.
+        const me = bot.entity?.position;
+        if (me && protectedAreaAt(bot, me) === area && Math.abs(block.position.x + 0.5 - me.x) <= 2.5
+            && Math.abs(block.position.z + 0.5 - me.z) <= 2.5 && block.position.y >= Math.floor(me.y) - 1
+            && block.position.y <= Math.floor(me.y) + 3) return null;
+        return `protected area "${area.name || 'player base'}" (if you are inside it, walk out; natural blocks right next to you may be dug to get out)`;
+    }
     return null;
 }
 

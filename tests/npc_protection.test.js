@@ -71,7 +71,14 @@ test('foreign building blocks are never broken; protected areas refuse', () => {
     assert.match(breakRefusal(bot, bot.blockAt(new Vec3(2, 1, 2))) || '', /player-built/);
     assert.equal(protectedAreaAt(bot, {x: 105, y: 64, z: 98})?.name, 'Lars Haus');
     assert.equal(protectedAreaAt(bot, {x: 130, y: 64, z: 98}), null);
-    assert.equal(breakRefusal(bot, {name: 'stone', position: new Vec3(104, 60, 101)}), 'protected area "Lars Haus"');
+    assert.match(breakRefusal(bot, {name: 'stone', position: new Vec3(104, 60, 101)}) || '', /^protected area "Lars Haus"/);
+    // way out: trapped inside the area, natural blocks right next to the bot are allowed, planks never
+    bot.entity = {position: new Vec3(104.5, 60, 101.5)};
+    assert.equal(breakRefusal(bot, {name: 'stone', position: new Vec3(105, 61, 101)}), null);
+    assert.match(breakRefusal(bot, {name: 'stone', position: new Vec3(108, 61, 101)}) || '', /protected area/);
+    set(104, 61, 102, 'oak_planks');
+    assert.match(breakRefusal(bot, bot.blockAt(new Vec3(104, 61, 102))) || '', /player-built/);
+    delete bot.entity;
     assert.equal(breakRefusal(bot, {name: 'stone', position: new Vec3(0, 0, 0)}), null);
 });
 

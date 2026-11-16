@@ -11,6 +11,12 @@ import Vec3 from "vec3";
 const DIRS = {north: [0, -1], south: [0, 1], east: [1, 0], west: [-1, 0]};
 const LIQUID = /^(water|lava|bubble_column)$/;
 const OPEN = /^(air|cave_air)$/;
+const FILLER = /^(cobblestone|cobbled_deepslate|dirt|stone|deepslate|andesite|diorite|granite|tuff|netherrack|gravel)$/;
+
+function fillerBlock(bot) {
+    const items = bot.inventory.items().filter(i => FILLER.test(i.name)).sort((a, b) => b.count - a.count);
+    return items[0]?.name || null;
+}
 
 class DigStairsTool extends BaseTool {
     constructor() {
@@ -37,19 +43,28 @@ class DigStairsTool extends BaseTool {
             const [dx, dz] = DIRS[direction];
             const start = bot.entity.position.floored();
             const at = (x, y, z) => bot.blockAt(new Vec3(x, y, z));
-            let done = 0;
+            let done = 0, walled = 0;
             for (let i = 1; i <= steps; i++) {
                 if (bot.interrupt_code) return toolResult('cancelled', `Stopped after ${done} steps.`, 'interrupted');
                 const x = start.x + dx * i, y = start.y - i, z = start.z + dz * i;
                 // the step: feet at y, 3 blocks of air y..y+2, plus the block above the previous step for headroom
                 const cells = [[x, y, z], [x, y + 1, z], [x, y + 2, z], [x - dx, y + 2, z - dz]];
                 const floor = at(x, y - 1, z);
-                // look around the new cells for liquids or open caves before opening them
+                // look around the new cells for liquids before opening them. Liquid beside the stairs is walled off
+                // with filler blocks (Lars: "Wasser zubauen"); liquid inside the stairs' own path still stops.
+                const own = new Set([...cells, [x, y - 1, z]].map(c => c.join(',')));
                 for (const [cx, cy, cz] of [...cells, [x, y - 1, z]]) {
                     for (const [ox, oy, oz] of [[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0],[0,-1,0]]) {
-                        const n = at(cx + ox, cy + oy, cz + oz);
-                        if (n && LIQUID.test(n.name)) return toolResult(done ? 'partial' : 'blocked',
-                            `Stopped after ${done} steps at y=${y + 1}: ${n.name} ahead at ${cx + ox},${cy + oy},${cz + oz}. Turn or wall it off with blocks.`, 'liquid');
+                        const p = [cx + ox, cy + oy, cz + oz];
+                        const n = at(...p);
+                        if (!n || !LIQUID.test(n.name)) continue;
+                        // also inside the stairs' path: fill it, the dig below opens it again with its neighbours sealed
+                        const filler = fillerBlock(bot);
+                        const sealed = filler && await skills.placeBlock(bot, filler, ...p, 'bottom', true).catch(() => false)
+                            && !LIQUID.test(at(...p)?.name || '');
+                        if (sealed) { walled++; continue; }
+                        return toolResult(done ? 'partial' : 'blocked',
+                            `Stopped after ${done} steps at y=${y + 1}: ${n.name} at ${p.join(',')}${own.has(p.join(',')) ? ' in the way of the stairs' : filler ? ' could not be walled off' : ' and no filler blocks (cobblestone, dirt) to wall it off'}. Turn or bring blocks.`, 'liquid');
                     }
                 }
                 if (floor && (OPEN.test(floor.name) || LIQUID.test(floor.name))) {
@@ -74,7 +89,7 @@ class DigStairsTool extends BaseTool {
                 }
             }
             const p = bot.entity.position.floored();
-            return toolResult('ok', `Dug ${done} stair steps ${direction}; now at ${p.x},${p.y},${p.z}. The way back up is the staircase.`);
+            return toolResult('ok', `Dug ${done} stair steps ${direction}${walled ? `, walled off ${walled} water/lava blocks` : ''}; now at ${p.x},${p.y},${p.z}. The way back up is the staircase.`);
         };
         return await agent.actions.runAction('action:digStairs', actionFn, {timeout: 8});
     }

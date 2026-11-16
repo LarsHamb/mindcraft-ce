@@ -73,7 +73,8 @@ export class AgentSystem {
                 return false;
             }
         });
-        this.pending=operation.catch(()=>{});
+        this.busy=(this.busy||0)+1;this.lastActive=this.now();
+        this.pending=operation.catch(()=>{}).finally(()=>{this.busy--;this.lastActive=this.now();});
         return operation;
     }
     async assess(source,message,interrupted=()=>false,attempt=0,steps=0) {
@@ -216,7 +217,20 @@ export class AgentSystem {
         await this.handleMessage(event.source,`[Supervision event] ${event.message}`,()=>false,1);
     }
     tick() {
-        if(!this.ready||!this.agent.prompter.use_brain||!this.currentDirective) return;
+        if(!this.ready||!this.agent.prompter.use_brain) return;
+        // Idle wake (free-living NPC): no task, no running request and nobody answered for idle_wake_seconds.
+        // Brain waited 10 minutes for an answer to its own question once; now it carries on with its plan.
+        const idle=Number(this.agent.prompter.profile?.idle_wake_seconds??settings.idle_wake_seconds??0);
+        if(!this.currentDirective&&idle>0&&!this.busy&&!this.pendingWake&&!this.task?.is_running) {
+            this.lastActive??=this.now();
+            if(this.now()-this.lastActive>=idle*1000) {
+                this.lastActive=this.now();
+                console.log(`Brain idle wake after ${idle} s without task or answer.`);
+                this.wake('system',`Nobody answered and no task ran for ${Math.round(idle/60)} min. Do not wait for an answer: continue your own plan and goals now with the next concrete task, or say briefly why you rest.`);
+            }
+            return;
+        }
+        if(!this.currentDirective) return;
         const seconds=this.agent.prompter.profile?.brain_check_in_seconds??settings.brain_check_in_seconds??60;
         if(seconds<=0||this.now()-this.lastCheck<seconds*1000) return;
         this.lastCheck=this.now();

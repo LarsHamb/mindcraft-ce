@@ -10,6 +10,7 @@ test('fixed sentences become German, model text passes unchanged', () => {
     assert.equal(germanize('Aaa! A zombie!'), 'Achtung, Zombie!');
     assert.equal(germanize('Hunting cow!'), 'Ich jage: Kuh.');
     assert.equal(germanize('Ich habe 8 Kohle abgebaut.'), 'Ich habe 8 Kohle abgebaut.');
+    assert.equal(germanize("I'm heading to the next spot."), '');
 });
 
 test('model requests wait while no real player is online', async () => {

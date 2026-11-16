@@ -46,5 +46,7 @@
  ],
  "npc_language": "de",
  "pause_without_players": true,
- "ignore_players": []
+ "ignore_players": [],
+ "idle_wake_seconds": 180,
+ "tool_narration_max_silence_seconds": 90
 }
