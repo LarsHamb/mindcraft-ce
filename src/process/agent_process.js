@@ -56,9 +56,15 @@ export class AgentProcess {
                     }
                     return;
                 }
-                console.log('Restarting agent...');
-                this.start(true, 'Agent process restarted.', count_id, this.port);
-                last_restart = Date.now();
+                // Boys patch (17.11.): a failed login ("Failed to obtain profile data", Mojang 429) restarted at once,
+                // again and again, which keeps the limit going. Quick deaths back off: 30 s, 60 s, ... up to 10 min.
+                this.quickFails = Date.now() - last_restart < 120000 ? (this.quickFails || 0) + 1 : 0;
+                const pause = this.quickFails ? Math.min(600, 30 * 2 ** (this.quickFails - 1)) : 0;
+                console.log(pause ? `Restarting agent in ${pause} s (failed ${this.quickFails}x in a row)...` : 'Restarting agent...');
+                setTimeout(() => {
+                    this.start(true, 'Agent process restarted.', count_id, this.port);
+                    last_restart = Date.now();
+                }, pause * 1000);
             }
         });
 
