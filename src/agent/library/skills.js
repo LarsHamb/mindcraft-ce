@@ -40,6 +40,42 @@ async function equipHighestAttack(bot) {
         await bot.equip(weapon, 'hand');
 }
 
+const planksCount = inv => Object.entries(inv).filter(([k]) => k.endsWith('_planks')).reduce((n, [, v]) => n + v, 0);
+function hintFor(text) {
+    if (/cobblestone|cobbled_deepslate|stone/.test(text)) return ' Mine stone with a wooden pickaxe (collectBlocks stone) for cobblestone.';
+    if (/iron_ingot/.test(text)) return ' Mine iron_ore with a stone pickaxe and smelt raw_iron with coal.';
+    if (/planks|stick/.test(text)) return ' Collect logs from a tree first (collectBlocks with a *_log).';
+    if (/string/.test(text)) return ' Kill spiders or break cobwebs for string.';
+    return '';
+}
+
+/** Craft planks and sticks from logs when a recipe needs them. Returns true if something was crafted. */
+async function craftIntermediates(bot, itemName, num) {
+    const recipe = mc.getItemCraftingRecipes(itemName)?.[0]?.[0];
+    if (!recipe) return false;
+    let inv = world.getInventoryCounts(bot);
+    const logName = () => Object.keys(world.getInventoryCounts(bot)).find(k => /_(log|stem)$/.test(k) && !k.startsWith('stripped_') && (world.getInventoryCounts(bot)[k] || 0) > 0);
+    let made = false;
+    const needPlanks = Object.entries(recipe).filter(([k]) => k.endsWith('_planks')).reduce((n, [, v]) => n + v, 0) * num;
+    const needSticks = (recipe.stick || 0) * num;
+    const planksForSticks = Math.max(0, Math.ceil((needSticks - (inv.stick || 0)) / 4) * 2);
+    const planksWanted = needPlanks + planksForSticks;
+    if (planksWanted > planksCount(inv)) {
+        const log = logName();
+        if (!log) return false;
+        const planks = log.replace(/_(log|stem)$/, '_planks');
+        if (!mc.getItemId(planks)) return false;
+        craftRecipe._nested = true;
+        try { made = await craftRecipe(bot, planks, Math.ceil((planksWanted - planksCount(inv)) / 4)) || made; } finally { craftRecipe._nested = false; }
+        inv = world.getInventoryCounts(bot);
+    }
+    if (needSticks > (inv.stick || 0) && planksCount(inv) >= 2) {
+        craftRecipe._nested = true;
+        try { made = await craftRecipe(bot, 'stick', Math.ceil((needSticks - (inv.stick || 0)) / 4)) || made; } finally { craftRecipe._nested = false; }
+    }
+    return made;
+}
+
 export async function craftRecipe(bot, itemName, num=1) {
     assertActionOwner(bot);
     /**
@@ -90,10 +126,20 @@ export async function craftRecipe(bot, itemName, num=1) {
         }
     }
     if (!recipes || recipes.length === 0) {
-        log(bot, `You do not have the resources to craft a ${itemName}. It requires: ${Object.entries(mc.getItemCraftingRecipes(itemName)[0][0]).map(([key, value]) => `${key}: ${value}`).join(', ')}.`);
         if (placedTable) {
             await collectBlock(bot, 'crafting_table', 1);
         }
+        // Boys patch: make planks and sticks from logs on the way, instead of failing (26 failed stick crafts
+        // in an hour-long test); then try once more.
+        if (!craftRecipe._nested && await craftIntermediates(bot, itemName, num)) {
+            craftRecipe._nested = true;
+            try { return await craftRecipe(bot, itemName, num); } finally { craftRecipe._nested = false; }
+        }
+        const need = mc.getItemCraftingRecipes(itemName)[0][0];
+        const inv = world.getInventoryCounts(bot);
+        const missing = Object.entries(need).filter(([key, value]) => (key.endsWith('_planks') ? planksCount(inv) : inv[key] || 0) < value)
+            .map(([key, value]) => `${key.endsWith('_planks') ? 'any planks' : key}: need ${value}, have ${key.endsWith('_planks') ? planksCount(inv) : inv[key] || 0}`);
+        log(bot, `You do not have the resources to craft a ${itemName}. Missing: ${missing.join('; ') || Object.entries(need).map(([k, v]) => `${k}: ${v}`).join(', ')}.${hintFor(missing.join(' '))} Get them first; do not call craftRecipe again before.`);
         return false;
     }
     

@@ -8,6 +8,31 @@ import { parseObject, chatText, functionTool, validateArguments } from './struct
 import { playerNarration, problemMessage } from '../user_messages.js';
 import { restoreBetweenTools } from '../modes.js';
 
+// Boys test 17.11.: it called craftRecipe stick without planks 26 times in an hour. The same call that
+// failed twice with the same inventory is not run a third time; the model gets a clear hint instead.
+const REPEAT_WINDOW_MS = 10 * 60000;
+// inventory plus rough position: a search may succeed again after moving 16 blocks
+const inventoryKey = agent => {
+    const p = agent.bot?.entity?.position;
+    const where = p ? `${Math.floor(p.x / 16)},${Math.floor(p.z / 16)}` : '';
+    return where + '|' + (agent.bot?.inventory?.items?.() || []).map(i => `${i.name}:${i.count}`).sort().join(',');
+};
+const callKey = call => `${call.name}:${JSON.stringify(call.arguments || {})}`;
+export function noteFailure(agent, call, result, now = Date.now()) {
+    const map = agent._failedCalls ??= new Map();
+    const key = callKey(call);
+    if (!['failed', 'blocked'].includes(result?.status)) { map.delete(key); return; }
+    const inv = inventoryKey(agent), prev = map.get(key);
+    const same = prev && prev.inv === inv && now - prev.at < REPEAT_WINDOW_MS;
+    map.set(key, {n: same ? prev.n + 1 : 1, inv, at: now, text: String(result.text || '').slice(0, 160)});
+    if (map.size > 50) map.delete(map.keys().next().value);
+}
+export function repeatedFailure(agent, call, now = Date.now()) {
+    const prev = agent._failedCalls?.get(callKey(call));
+    if (!prev || prev.n < 2 || now - prev.at > REPEAT_WINDOW_MS || prev.inv !== inventoryKey(agent)) return null;
+    return toolResult('blocked', `NOT run again: this exact call already failed ${prev.n} times with the same inventory ("${prev.text}"). First get what is missing (collect, craft the ingredient, or go elsewhere), or choose a different step.`, 'repeated_failure');
+}
+
 const controls = [
     functionTool('taskDone','Declare the assigned objective complete, with factual evidence.',{summary:{type:'string'}},[]),
     functionTool('taskBlocked','Return control to the Brain with a specific blocker after reasonable recovery attempts.',{reason:{type:'string'}}),
@@ -132,8 +157,13 @@ export class TaskAgent {
                             if(!definitions.some(t=>t.function.name===call.name)) throw new Error(`Tool ${call.name} is not granted; use requestTools`);
                             await narrator.beforeTool(call);
                             this.agent.self_prompter?.handleUserPromptedCmd(this.source==='system'||this.source===this.agent.name,isToolAction(this.agent,call.name));
-                            console.log(`[TaskAgent] Calling tool ${call.name}`,call.arguments);
-                            result=asToolResult(await executeTool(this.agent,call.name,call.arguments));usedTool=true;
+                            const repeat=repeatedFailure(this.agent,call);
+                            if(repeat) result=repeat;
+                            else {
+                                console.log(`[TaskAgent] Calling tool ${call.name}`,call.arguments);
+                                result=asToolResult(await executeTool(this.agent,call.name,call.arguments));usedTool=true;
+                                noteFailure(this.agent,call,result);
+                            }
                         }
                     } catch(error) {result=toolResult('failed',error.message,error.code||'error');}
                     if(this.cancelJob||shouldInterrupt()) break;
