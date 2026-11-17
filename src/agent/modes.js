@@ -398,7 +398,7 @@ const modes_list = [
             const t = bot.time?.timeOfDay, day = bot.time?.day;
             if (Number.isFinite(t) && t >= 11000 && t < 12500 && day !== this.duskDay) {
                 this.duskDay = day;
-                wake('Night falls in about a minute. Go to your shelter, or build one now with buildShelter, or dig in; put torches around it. Do not stay in the open.');
+                wake('Night falls in about a minute. Go to your shelter, or build one now with buildShelter, or dig in; put torches around it. Do not stay in the open. If you have a bed at your base, sleep in it (goToBed): that also sets your respawn point there.');
             }
         }
     },

@@ -3,13 +3,13 @@
 # Aufruf: [NUR=kuehe,tod] ./komplex-test.sh [x z]   (Startpunkt, Standard 900 -800). Ergebnis in komplex-ergebnis.txt
 L=/home/lars/mindcraft-ce-lauf
 cd $L || exit 1
-X=${1:-900}; Z=${2:--800}
+X=${1:-1300}; Z=${2:--1300}
 J=$L/bots26/MindCE/journal.jsonl
 E=$L/komplex-ergebnis.txt
 rm -f $L/bots26/MindCE/usage.json
 T0=$(date +%s)
 ./start26.sh >/dev/null; sleep 32
-./rcon26.sh "spreadplayers $X $Z 0 4 false MindCE" "time set 1000" "weather clear" >/dev/null; sleep 3
+./rcon26.sh "spreadplayers $X $Z 0 60 false MindCE" "time set 1000" "weather clear" >/dev/null; sleep 3
 
 warte() { # $1 Startzeit (s), $2 Limit (s): wartet auf task_end fuer einen Spieler-Auftrag
   python3 - "$J" "$1" "$2" <<'EOF'
@@ -43,7 +43,7 @@ szene() { # $1 Name, $2 Auftrag, $3 Limit
 }
 
 dran() { [ -z "$NUR" ] || echo ",$NUR," | grep -q ",$1,"; }
-nachoben() { ./rcon26.sh "spreadplayers $X $Z 0 4 false MindCE" >/dev/null; sleep 4; ./rcon26.sh "tp Tester MindCE" "execute as MindCE at @s run spawnpoint MindCE ~ ~ ~" >/dev/null; }
+nachoben() { ./rcon26.sh "spreadplayers $X $Z 0 60 false MindCE" >/dev/null; sleep 4; ./rcon26.sh "tp Tester MindCE" "execute as MindCE at @s run spawnpoint MindCE ~ ~ ~" >/dev/null; }
 pos() { ./rcon26.sh "data get entity MindCE Pos" | sed "s/.*\[\([-0-9]*\)\.[0-9]*d, \([-0-9]*\)\.[0-9]*d, \([-0-9]*\)\.[0-9]*d\].*/\1 \2 \3/"; }
 
 : > $E
@@ -102,6 +102,28 @@ if dran diagear; then
   szene diagear "Hol dir bitte Diamanten und mach dir daraus eine Diamantspitzhacke und dann so viel Diamantruestung wie du schaffst. Pass auf dich auf." 2100
   ./rcon26.sh "data get entity MindCE Pos" | tee -a $E
   ./rcon26.sh "clear MindCE minecraft:diamond 0" "clear MindCE minecraft:diamond_pickaxe 0" "clear MindCE minecraft:diamond_chestplate 0" "clear MindCE minecraft:diamond_helmet 0" "clear MindCE minecraft:diamond_leggings 0" "clear MindCE minecraft:diamond_boots 0" | tee -a $E
+fi
+# 5e) Ernten (NUR=ernten): Feld anlegen lassen, Weizen per Befehl reif machen, ernten lassen
+if dran ernten; then
+  nachoben
+  set -- $(pos); PX=$1; PY=$2; PZ=$3
+  ./rcon26.sh "fill $((PX+4)) $((PY-1)) $((PZ-1)) $((PX+5)) $((PY-1)) $((PZ)) water" "give MindCE stone_hoe 1" "give MindCE wheat_seeds 12" >/dev/null
+  szene ernten "Leg bitte neben dem Wasser ein kleines Weizenfeld an." 300
+  set -- $(pos); PX=$1; PY=$2; PZ=$3
+  ./rcon26.sh "fill $((PX-10)) $((PY-3)) $((PZ-10)) $((PX+10)) $((PY+3)) $((PZ+10)) wheat[age=7] replace wheat" | tee -a $E
+  szene ernten "Dein Weizen ist reif. Ernte bitte dein Feld und mach Brot daraus." 300
+fi
+# 5f) Weide (NUR=weide): zwei Kuehe, Holz und Weizen; Zaun mit Tor bauen und die Kuehe reinholen
+if dran weide; then
+  nachoben
+  set -- $(pos); PX=$1; PY=$2; PZ=$3
+  ./rcon26.sh "give MindCE oak_planks 64" "give MindCE stick 32" "give MindCE wheat 6" "summon cow $((PX-4)) $PY $PZ" "summon cow $((PX-4)) $PY $((PZ+2))" "give MindCE oak_planks 64" >/dev/null
+  szene weide "Bau bitte eine Weide mit Zaun fuer die zwei Kuehe hier und hol sie rein." 400
+fi
+# 5g) Blaetter (NUR=blaetter): darf nicht ewig an Blaettern haengen
+if dran blaetter; then
+  nachoben
+  szene blaetter "Sammle bitte 10 Eichenblaetter." 120
 fi
 # 6) Tod und Rueckholen: Spawnpunkt 25 Bloecke weg, dann sterben
 if dran tod; then

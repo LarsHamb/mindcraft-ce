@@ -100,6 +100,19 @@ class BuildShelterTool extends BaseTool {
                 const b = at(q);
                 if (b && b.name !== 'air' && b.name !== 'cave_air' && b.name !== 'water') { await skills.breakBlockAt(bot, q.x, q.y, q.z); bot.emit('mining_progress', {message: 'Clearing the shelter floor.'}); }
             }
+            // Boys tests 17.11.: on a slope the lowest wall row hung in the air and all placements failed ("Placed 0").
+            // Fill 1-deep gaps under the walls first; on ground that drops more, say so at once.
+            const ground = plan.walls.filter(q => q.y === p.y);
+            let floating = 0;
+            for (const q of ground) {
+                const below = at({x: q.x, y: q.y - 1, z: q.z});
+                if (isSolidName(below?.name)) continue;
+                const deeper = at({x: q.x, y: q.y - 2, z: q.z});
+                const left = pickMaterials(bot, material);
+                if (isSolidName(deeper?.name) && left.length && await skills.placeBlock(bot, left[0][0], q.x, q.y - 1, q.z, 'bottom', true)) continue;
+                floating++;
+            }
+            if (floating > 3) return toolResult('blocked', `The ground here is too uneven for a shelter (${floating} wall blocks over gaps). Move a few blocks to flat ground and call buildShelter again.`, 'uneven');
             // no new block for 45 s: stop and report the holes (it tried for 3.5 min on a slope once)
             let placed = 0, failed = 0, lastProgress = Date.now();
             for (const q of [...plan.walls, ...plan.roof]) {

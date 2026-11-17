@@ -86,7 +86,9 @@
         "stop",
         "makeField",
         "breedAnimals",
-        "stash"
+        "stash",
+        "harvestField",
+        "buildPen"
     ],
     "summary_chunk_size": 14,
     "max_messages": 20,

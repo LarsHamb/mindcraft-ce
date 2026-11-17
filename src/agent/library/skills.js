@@ -117,7 +117,13 @@ export async function craftRecipe(bot, itemName, num=1) {
                 }
             }
             else {
-                log(bot, `Crafting ${itemName} requires a crafting table.`)
+                // Boys test 17.11.: bread failed for want of a table. Make one from 4 planks (logs are turned into
+                // planks on the way), then try once more.
+                if (itemName !== 'crafting_table' && !craftRecipe._nested && await craftRecipe(bot, 'crafting_table', 1)) {
+                    craftRecipe._nested = true;
+                    try { return await craftRecipe(bot, itemName, num); } finally { craftRecipe._nested = false; }
+                }
+                log(bot, `Crafting ${itemName} requires a crafting table (or 4 planks to make one).`)
                 return false;
             }
         }
@@ -155,7 +161,28 @@ export async function craftRecipe(bot, itemName, num=1) {
     const craftLimit = mc.calculateLimitingResource(inventory, requiredIngredients);
     
     const before = inventory[itemName] || 0;
-    await bot.craft(recipe, Math.min(craftLimit.num, num), craftingTable);
+    try {
+        await bot.craft(recipe, Math.min(craftLimit.num, num), craftingTable);
+    } catch (err) {
+        // Boys test 17.11. (26.3): a 3x3 recipe (fence gate) was offered without a table and the craft threw.
+        // Use a crafting table nearby, or place one from the inventory, and craft once more.
+        if (!/requires craftingTable/i.test(String(err?.message)) || craftingTable) throw err;
+        craftingTable = world.getNearestBlock(bot, 'crafting_table', craftingTableRange);
+        if (!craftingTable && (world.getInventoryCounts(bot)['crafting_table'] || 0) > 0) {
+            const free = world.getNearestFreeSpace(bot, 1, 6);
+            await placeBlock(bot, 'crafting_table', free.x, free.y, free.z);
+            craftingTable = world.getNearestBlock(bot, 'crafting_table', craftingTableRange);
+            placedTable = Boolean(craftingTable);
+        }
+        if (!craftingTable) {
+            log(bot, `Crafting ${itemName} requires a crafting table: place one nearby or carry one.`);
+            return false;
+        }
+        if (bot.entity.position.distanceTo(craftingTable.position) > 4) await goToNearestBlock(bot, 'crafting_table', 4, craftingTableRange);
+        const withTable = bot.recipesFor(mc.getItemId(itemName), null, 1, craftingTable);
+        if (!withTable?.length) { log(bot, `You do not have the resources to craft a ${itemName} at the table.`); if (placedTable) await collectBlock(bot, 'crafting_table', 1); return false; }
+        await bot.craft(withTable[0], Math.min(craftLimit.num, num), craftingTable);
+    }
     // 26.3: the result sometimes does not arrive in the inventory ("you now have undefined") and lands on the
     // ground; it then crafted three crafting tables in a row. Wait for it, pick up drops, else report honestly.
     let now = world.getInventoryCounts(bot)[itemName] || 0;
@@ -494,15 +521,28 @@ export async function defendSelf(bot, range=9) {
 
 
 
+const NO_DROP = /(_leaves$|^leaf_litter$|^bush$|^firefly_bush$)/;
+
 export async function collectBlockResult(bot, blockType, num=1, exclude=null) {
     assertActionOwner(bot);
+    // Boys tests 17.11.: "Broke 0/10 oak_leaves" again and again. Leaves, leaf litter and bushes drop nothing
+    // useful without shears; say so at once instead of climbing tree tops for them.
+    if (NO_DROP.test(blockType) && !bot.inventory.items().some(i => i.name === 'shears')) {
+        const text = `${blockType} drops nothing useful without shears. To clear a building spot, buildShelter clears the floor itself; ` +
+            `for saplings or apples break leaves with breakBlockAt next to you; for wood collect *_log.`;
+        log(bot, text);
+        return {status: 'blocked', text, code: 'no_drop'};
+    }
     await tidyInventory(bot).catch(() => 0); // room for the drops
     const movements = new pf.Movements(bot);
     movements.dontCreateFlow = true;
+    // prefer what it can reach: blocks high above (tree tops) cost much more than their distance
+    const effort = b => { const me = bot.entity.position; return b.position.distanceTo(me) + Math.max(0, b.position.y - me.y - 2) * 4; };
     const result = await collectBlocks(bot, blockType, num, {
         find: predicate => world.getNearestBlocksWhere(bot, block => predicate(block) &&
             (!block.position || movements.safeToBreak(block) || block.name === 'obsidian'), 64, 128)
-            .filter(block => predicate(block) && (movements.safeToBreak(block) || block.name === 'obsidian') && !harvestRefusal(bot, block)),
+            .filter(block => predicate(block) && (movements.safeToBreak(block) || block.name === 'obsidian') && !harvestRefusal(bot, block))
+            .sort((a, b) => effort(a) - effort(b)),
         pickup: () => pickupNearbyItems(bot, true),
         afterBreak: () => autoLight(bot),
         liquid: block => useToolOnBlock(bot, 'bucket', block), exclude,
@@ -843,7 +883,19 @@ export async function placeBlock(bot, blockType, x, y, z, placeOn='bottom', dont
             log(bot, `Confirmed ${blockType} at ${target_dest} after placement feedback: ${err.message}.`);
             return true;
         }
-        log(bot, `Failed to place ${blockType} at ${target_dest}.`);
+        log(bot, `Failed to place ${blockType} at ${target_dest}: ${String(err?.message || err).slice(0, 140)}.`);
+        // Boys tests 17.11.: torches at its own feet failed again and again. Try a free floor spot right beside it.
+        if (/torch$/.test(blockType) && !placeBlock._torchRetry) {
+            placeBlock._torchRetry = true;
+            try {
+                for (const [ox, oz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                    const p = target_dest.offset(ox, 0, oz);
+                    const here = bot.blockAt(p), below = bot.blockAt(p.offset(0, -1, 0));
+                    if (!here || !below || !empty_blocks.includes(here.name) || below.boundingBox !== 'block') continue;
+                    if (await placeBlock(bot, blockType, p.x, p.y, p.z, 'bottom', dontCheat)) return true;
+                }
+            } finally { placeBlock._torchRetry = false; }
+        }
         return false;
     }
 }

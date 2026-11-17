@@ -245,6 +245,26 @@ function guardMovements(bot, movements) {
     return movements;
 }
 
+// Boys tests 17.11.: its own hut became a "built" area (a few unrecorded blocks: bed head, wall torches) and
+// then blocked its own mine there. Where most building blocks around are its own, it is its own base.
+export function mostlyOwn(bot, c, r = BUILT_RADIUS) {
+    const s = state(bot);
+    let own = 0, foreign = 0;
+    for (const [k, name] of s.own) {
+        const [x, y, z] = k.split(',').map(Number);
+        if (Math.abs(x - c.x) <= r && Math.abs(z - c.z) <= r && Math.abs(y - c.y) <= BUILT_HEIGHT && BUILDING.test(name)) own++;
+    }
+    if (!own) return false;
+    const found = bot.findBlocks?.({matching: b => !!b && BUILDING.test(b.name), maxDistance: r + 4, count: 512}) || [];
+    for (const q of found) {
+        if (Math.abs(q.x - c.x) > r || Math.abs(q.z - c.z) > r) continue;
+        const b = bot.blockAt(q);
+        if (b && s.own.get(key(q)) !== b.name) foreign++;
+    }
+    // a real player build next to it keeps its protection: only a handful of foreign blocks count as its own base
+    return own >= foreign * 2 && foreign <= 12;
+}
+
 // Detect clusters of foreign building blocks above ground and protect them (Jarvis: erkenneBebauung).
 export function detectBuiltAreas(bot) {
     const s = state(bot);
@@ -260,7 +280,7 @@ export function detectBuiltAreas(bot) {
         // underground (mineshaft, ancient city): no sky light above any block
         if (pile.every(q => bot.blockAt(new Vec3(q.x, q.y + 1, q.z))?.skyLight === 0)) continue;
         const c = ['x', 'y', 'z'].reduce((m, a) => ({...m, [a]: Math.round(pile.reduce((n, q) => n + q[a], 0) / pile.length)}), {});
-        if (protectedAreaAt(bot, c)) continue;
+        if (protectedAreaAt(bot, c) || mostlyOwn(bot, c)) continue;
         const area = {name: `built ${c.x},${c.z}`, x: c.x, y: c.y, z: c.z, radius: BUILT_RADIUS, at: Date.now()};
         s.built.push(area);
         s.saveBuilt();
@@ -300,6 +320,7 @@ export function pruneBuiltAreas(bot) {
             const b = bot.blockAt(new Vec3(a.bed.x, a.bed.y, a.bed.z));
             return !!b && !isBed(b.name);
         }
+        if (mostlyOwn(bot, a)) return true; // its own base
         let unknown = false;
         for (let dx = -a.radius; dx <= a.radius; dx++) for (let dz = -a.radius; dz <= a.radius; dz++) for (let dy = -BUILT_HEIGHT; dy <= BUILT_HEIGHT; dy++) {
             const p = new Vec3(a.x + dx, a.y + dy, a.z + dz);

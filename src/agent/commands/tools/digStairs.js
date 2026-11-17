@@ -43,10 +43,12 @@ class DigStairsTool extends BaseTool {
                 const a = ((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
                 direction = a < Math.PI / 4 || a >= 7 * Math.PI / 4 ? 'north' : a < 3 * Math.PI / 4 ? 'west' : a < 5 * Math.PI / 4 ? 'south' : 'east';
             }
+            const at = (x, y, z) => bot.blockAt(new Vec3(x, y, z));
+            let walled = 0, bridged = 0;
+            const tryDir = async direction => {
             const [dx, dz] = DIRS[direction];
             const start = bot.entity.position.floored();
-            const at = (x, y, z) => bot.blockAt(new Vec3(x, y, z));
-            let done = 0, walled = 0;
+            let done = 0;
             for (let i = 1; i <= steps; i++) {
                 if (bot.interrupt_code) return toolResult('cancelled', `Stopped after ${done} steps.`, 'interrupted');
                 const x = start.x + dx * i, y = start.y - i, z = start.z + dz * i;
@@ -71,7 +73,13 @@ class DigStairsTool extends BaseTool {
                     }
                 }
                 if (floor && (OPEN.test(floor.name) || LIQUID.test(floor.name))) {
-                    return toolResult(done ? 'partial' : 'blocked', `Stopped after ${done} steps at y=${y + 1}: open cave or drop below the next step. Avoid caves; turn and continue.`, 'cave');
+                    // a small pocket (solid ground right below it) gets a floor block; a real cave or drop stops
+                    const below = at(x, y - 2, z), filler = fillerBlock(bot);
+                    const pocket = OPEN.test(floor.name) && below && !OPEN.test(below.name) && !LIQUID.test(below.name);
+                    const filled = pocket && filler && bridged < 6 && await skills.placeBlock(bot, filler, x, y - 1, z, 'bottom', true).catch(() => false)
+                        && !OPEN.test(at(x, y - 1, z)?.name || 'air');
+                    if (filled) bridged++;
+                    else return toolResult(done ? 'partial' : 'blocked', `Stopped after ${done} steps at y=${y + 1}: open cave or drop below the next step. Avoid caves; turn and continue.`, 'cave');
                 }
                 for (const [cx, cy, cz] of cells) {
                     const b = at(cx, cy, cz);
@@ -92,7 +100,20 @@ class DigStairsTool extends BaseTool {
                 }
             }
             const p = bot.entity.position.floored();
-            return toolResult('ok', `Dug ${done} stair steps ${direction}${walled ? `, walled off ${walled} water/lava blocks` : ''}; now at ${p.x},${p.y},${p.z}. The way back up is the staircase (its top is the place 'mineneingang': goToRememberedPlace).`);
+            return toolResult('ok', `Dug ${done} stair steps ${direction}${walled ? `, walled off ${walled} water/lava blocks` : ''}${bridged ? `, filled ${bridged} small holes` : ''}; now at ${p.x},${p.y},${p.z}. The way back up is the staircase (its top is the place 'mineneingang': goToRememberedPlace).`);
+            };
+            // Boys tests 17.11.: right at a cave it stopped after 0 steps, and the model asked the same direction
+            // again. At 0 steps the other directions are tried here first (sideways before back).
+            let result = await tryDir(direction);
+            if (result.code === 'cave' && result.status === 'blocked') {
+                const order = {north: ['east', 'west', 'south'], south: ['west', 'east', 'north'], east: ['south', 'north', 'west'], west: ['north', 'south', 'east']}[direction];
+                for (const other of order) {
+                    if (bot.interrupt_code) break;
+                    const next = await tryDir(other);
+                    if (!(next.code === 'cave' && next.status === 'blocked')) { result = next; break; }
+                }
+            }
+            return result;
         };
         // a mine entrance is meant to stay open: no surface restore for its cells
         const guarded = async () => { agent.bot.__noRestore = true; try { return await actionFn(); } finally { agent.bot.__noRestore = false; } };
