@@ -8,6 +8,7 @@ import { findVillage, bedsAround, villagersAround, chooseFreeBed, isNight, darkS
 import { makeStash, STASH_PLACE } from "../../library/stash.js";
 import { ripeCrops, CROPS } from "./harvestField.js";
 import { currentCharacter } from "../../library/characters.js";
+import settings from "../../settings.js";
 import Vec3 from "vec3";
 
 // Lars, 17.11.: "ein Dorfbewohner auf Crack". He moves into a free bed of a village, sleeps there and keeps
@@ -154,6 +155,8 @@ async function tower(agent) {
     const bot = agent.bot;
     const home = getHome(bot);
     if (!home?.bell) return toolResult('blocked', 'No home village yet: village move_in first.', 'no_home');
+    // climbing up while building does not work on 26.3 yet (test 17.11.): off unless settings.village_tower
+    if (!settings.village_tower) return toolResult('blocked', 'Building the watchtower is not ready yet. Guard the village from the bell instead (village watch) and keep it lit (village care).', 'tower_off');
     const old = agent.memory_bank?.recallPlace?.('wachturm');
     if (old) return toolResult('ok', `The village already has my watchtower at ${old.map(Math.round).join(',')}. Keep watch there at night (village watch).`);
     const center = v3(home.bell), wood = villageWood(bot, center), need = towerNeeds(wood);
