@@ -9,9 +9,13 @@ import DigStairs from './tools/digStairs.js';
 import ExecuteCode from './tools/executeCode.js';
 import GenerateAugment from './tools/generateAugment.js';
 import SearchSkills from './tools/searchSkills.js';
+import MakeField from './tools/makeField.js';
+import BreedAnimals from './tools/breedAnimals.js';
+import Stash from './tools/stash.js';
 import { getAugmentRegistry } from '../agents/code.js';
 
-const extras = [new PlaceBlockAt(), new PlaceBlocks(), new BuildShelter(), new DigStairs(), new ExecuteCode(), new GenerateAugment(), new SearchSkills()];
+const extras = [new PlaceBlockAt(), new PlaceBlocks(), new BuildShelter(), new DigStairs(), new ExecuteCode(), new GenerateAugment(), new SearchSkills(),
+    new MakeField(), new BreedAnimals(), new Stash()];
 const codeTools = new Set(['newAction', 'executeCode', 'generateAugment']);
 const unblockable = new Set(['stop', 'stats', 'inventory', 'goal']);
 const types = { int: 'integer', float: 'number', BlockName: 'string', ItemName: 'string', BlockOrItemName: 'string' };

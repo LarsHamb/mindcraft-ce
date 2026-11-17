@@ -79,7 +79,10 @@
   "goToSurface",
   "goToBed",
   "stay",
-  "stop"
+  "stop",
+  "makeField",
+  "breedAnimals",
+  "stash"
  ],
  "summary_chunk_size": 14,
  "max_messages": 20,

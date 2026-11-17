@@ -22,6 +22,7 @@ import { speak } from './speak.js';
 import { AgentSystem } from './agents/system.js';
 import { DecisionService } from './decisions.js';
 import { log, validateNameFormat, handleDisconnection } from './connection_handler.js';
+import { deathRecoverable, saveRecovery } from './library/stash.js';
 
 export class Agent {
     async start(load_mem=false, init_message=null, count_id=0) {
@@ -494,6 +495,7 @@ export class Agent {
             this.agentSystem?.cancelTask();
             this.actions.cancelResume();
             this.actions.stop();
+            try { this.bot.pathfinder?.stop(); this.bot.clearControlStates(); } catch {}
         });
         this.bot.on('kicked', (reason) => {
             if (!this._disconnectHandled) {
@@ -512,7 +514,16 @@ export class Agent {
                     death_pos_text = `x: ${death_pos.x.toFixed(2)}, y: ${death_pos.y.toFixed(2)}, z: ${death_pos.z.toFixed(2)}`;
                 }
                 let dimention = this.bot.game.dimension;
-                this.handleMessage('system', `You died at position ${death_pos_text || "unknown"} in the ${dimention} dimension with the final message: '${message}'. Your place of death is saved as 'last_death_position' if you want to return. Previous actions were stopped and you have respawned.`);
+                // Boys patch (Lars, 17.11.): fetch the dropped things back by reflex (mode recover_items, no
+                // tokens), or take food and tools from the stash chest when they are lost.
+                const recoverable = death_pos && deathRecoverable(message, dimention, death_pos.y);
+                this.deathRecovery = death_pos ? {x: death_pos.x, y: death_pos.y, z: death_pos.z, dimension: dimention, recoverable,
+                    at: Date.now(), until: Date.now() + 270000, itemsAtDeath: this.bot.inventory.items().reduce((n, i) => n + i.count, 0), tries: 0} : null;
+                saveRecovery(this.name, this.deathRecovery);
+                const plan = recoverable
+                    ? 'Your recover_items reflex now walks back and picks up your dropped things (they vanish after 5 minutes); do not start other tasks until it reports.'
+                    : `Your dropped things are destroyed (${/lava|burn|fire|flames/i.test(message) ? 'fire or lava' : 'void'}). Take spare food and tools from your stash chest with the stash tool (mode take) if you have one.`;
+                this.handleMessage('system', `You died at position ${death_pos_text || "unknown"} in the ${dimention} dimension with the final message: '${message}'. Your place of death is saved as 'last_death_position'. Previous actions were stopped and you have respawned. ${plan}`);
             }
         });
         this.bot.on('idle', () => {

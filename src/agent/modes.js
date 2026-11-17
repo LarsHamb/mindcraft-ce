@@ -8,6 +8,7 @@ import Vec3 from 'vec3';
 import { journal } from './journal.js';
 import pf from 'mineflayer-pathfinder';
 import { RANGED, ILLAGERS, markIllagers, dangerAt } from './library/danger.js';
+import * as stashLib from './library/stash.js';
 
 async function say(agent, message) {
     agent.bot.modes.behavior_log += message + '\n';
@@ -299,6 +300,51 @@ const modes_list = [
     {
         // Lars, 17.11.: what was broken in a protected area is put back exactly; holes at the surface are
         // closed again (soil with dirt, never cobblestone on a meadow); a sapling goes where a tree stood.
+        // Lars, 17.11.: after a death walk back and pick the dropped things up (they vanish after 5 min),
+        // without asking the model. Lost things (lava, void) or a failed walk: take food and tools from the stash.
+        name: 'recover_items',
+        description: 'After a death, fetch the dropped items back, or restock from the stash chest.',
+        interrupts: ['all'],
+        on: true,
+        active: false,
+        last: 0,
+        update: async function (agent) {
+            if (this.loaded !== agent.name) { this.loaded = agent.name; agent.deathRecovery ??= stashLib.loadRecovery(agent.name); }
+            const r = agent.deathRecovery, bot = agent.bot;
+            if (!r || this.active || Date.now() - this.last < 3000) return;
+            this.last = Date.now();
+            if (!bot.entity || bot.health <= 0 || bot.isAlive === false) return;
+            if (Date.now() - (r.at || 0) < 4000) return; // the inventory is cleared a moment after respawn
+            // only clear our own long window, never a short drowning/danger window
+            const release = () => { if ((agent.emergencyUntil || 0) - Date.now() > 20000) agent.emergencyUntil = 0; };
+            const finish = (msg) => { agent.deathRecovery = null; stashLib.saveRecovery(agent.name, null); release(); journal('recover', {msg}, bot); if (msg) agent.agentSystem?.wake?.('system', msg); };
+            const items = bot.inventory.items().reduce((n, i) => n + i.count, 0);
+            const far = String(bot.game.dimension) !== String(r.dimension) || bot.entity.position.distanceTo(new Vec3(r.x, r.y, r.z)) > 400;
+            const keepInventory = r.itemsAtDeath > 0 && items >= r.itemsAtDeath * 0.5;
+            if (keepInventory) return finish(null);
+            const goRecover = r.recoverable && !far && Date.now() < r.until && r.tries < 3;
+            const hasStash = Boolean(agent.memory_bank?.recallPlace?.(stashLib.STASH_PLACE));
+            if (!goRecover && !hasStash) return finish(r.recoverable ? 'Could not get your dropped things back (too far or too late). Start again with wood and tools.' : null);
+            r.tries++;
+            agent.emergencyUntil = Date.now() + 5 * 60000; // Task waits; the reflex is short
+            execute(this, agent, async () => {
+                let msg = '';
+                if (goRecover) {
+                    say(agent, 'Meine Sachen! Ich hol sie zurück.');
+                    const res = await stashLib.recoverDrops(bot, r);
+                    if (res.picked > 0) msg = `Recovered ${res.picked} of your dropped items at the death spot.`;
+                    else if (r.tries < 3 && !res.reached && Date.now() < r.until) return; // try again
+                    else msg = 'Found nothing at the death spot (items gone or not reachable).';
+                }
+                if ((!goRecover || !msg.startsWith('Recovered')) && hasStash) {
+                    const t = await stashLib.takeFromStash(bot, agent);
+                    msg += t.error ? ` Stash: ${t.error}` : t.taken.length ? ` Took ${t.taken.join(', ')} from your stash.` : ' The stash had nothing you were missing.';
+                }
+                finish(msg.trim() + ' Continue your plan.');
+            }, 5).finally(release); // interrupted (danger) or retry: Task may run until the next try
+        }
+    },
+    {
         name: 'restore_blocks',
         description: 'Put back blocks broken in protected areas or at the surface, and replant saplings, when idle.',
         interrupts: ['action:followPlayer'],
@@ -582,6 +628,10 @@ class ModeController {
     }
 
     async update() {
+        // Boys patch: no reflex while dead. Moving a dead player (self_preservation fleeing at 0 health)
+        // got the bot kicked with "Invalid move player packet" on 26.3 and lost the death recovery.
+        const b = _agent.bot;
+        if (b?.isAlive === false || (Number.isFinite(b?.health) && b.health <= 0)) return;
         if (_agent.isIdle()) {
             this.unPauseAll();
         }

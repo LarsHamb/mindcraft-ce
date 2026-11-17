@@ -36,6 +36,8 @@ EOF
 cp "$HOME/mindcraft-ce/npc/checksums.cjs" mineflayer/node_modules/minecraft-protocol/src/datatypes/checksums.js
 # Platzieren: nicht 5 s auf ein verpasstes Block-Update warten
 python3 "$HOME/mindcraft-ce/npc/patch_place_block.py" mineflayer/lib/plugins/place_block.js
+# Tod: keine Bewegungspakete, solange er tot ist (26.3 kickt sonst)
+python3 "$HOME/mindcraft-ce/npc/patch_physics_dead.py" mineflayer/lib/plugins/physics.js
 cat > "$B/Dockerfile" <<'EOF'
 FROM mindcraft-ce-test
 RUN rm -rf /app/node_modules/mineflayer /app/node_modules/minecraft-data /app/node_modules/minecraft-data-base
