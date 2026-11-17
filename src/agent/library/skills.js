@@ -450,6 +450,7 @@ export async function defendSelf(bot, range=9) {
 
 export async function collectBlockResult(bot, blockType, num=1, exclude=null) {
     assertActionOwner(bot);
+    await tidyInventory(bot).catch(() => 0); // room for the drops
     const movements = new pf.Movements(bot);
     movements.dontCreateFlow = true;
     const result = await collectBlocks(bot, blockType, num, {
@@ -480,6 +481,30 @@ export async function collectBlock(bot, blockType, num=1, exclude=null) {
     return result.status === 'ok' || result.status === 'partial';
 }
 
+
+// Junk that piles up by the way (95 leaf litter once): with a full inventory drops cannot be picked up
+// ("Blocks broke, but their drops were not acquired"). Kept amounts per item; anything not listed is kept.
+const JUNK_KEEP = {leaf_litter: 0, dandelion: 0, poppy: 0, short_grass: 0, dead_bush: 0, rotten_flesh: 0, spider_eye: 0,
+    poisonous_potato: 0, firefly_bush: 0, peony: 0, bush: 0, cornflower: 0, azure_bluet: 0, oxeye_daisy: 0,
+    wheat_seeds: 16, stick: 32, gravel: 16, flint: 8, dirt: 64, granite: 32, diorite: 32, andesite: 32, tuff: 32,
+    cobblestone: 128, cobbled_deepslate: 64, oak_sapling: 8, birch_sapling: 8, spruce_sapling: 8, acacia_sapling: 8,
+    jungle_sapling: 8, dark_oak_sapling: 8, cherry_sapling: 8};
+
+export async function tidyInventory(bot, minFree = 4) {
+    if (bot.inventory.emptySlotCount() >= minFree) return 0;
+    let tossed = 0;
+    const counts = {};
+    for (const item of bot.inventory.items()) counts[item.name] = (counts[item.name] || 0) + item.count;
+    for (const item of bot.inventory.items()) {
+        if (bot.inventory.emptySlotCount() >= minFree + 2) break;
+        const keep = JUNK_KEEP[item.name] ?? (/_(tulip|orchid|allium)$/.test(item.name) ? 0 : undefined);
+        if (keep === undefined || counts[item.name] <= keep) continue;
+        const n = Math.min(item.count, counts[item.name] - keep);
+        try { await bot.toss(item.type, null, n); counts[item.name] -= n; tossed += n; } catch {}
+    }
+    if (tossed) log(bot, `Inventory almost full: threw away ${tossed} junk items (leaf litter, flowers, surplus).`);
+    return tossed;
+}
 
 export async function pickupNearbyItems(bot, allowDig=false) {
     assertActionOwner(bot);

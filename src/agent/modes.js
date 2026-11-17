@@ -270,6 +270,12 @@ const modes_list = [
         prev_item: null,
         noticed_at: -1,
         update: async function (agent) {
+            // almost full: throw away junk first, otherwise nothing can be picked up any more
+            if (agent.bot.inventory.emptySlotCount() < 4 && Date.now() - (this.lastTidy || 0) > 30000) {
+                this.lastTidy = Date.now();
+                execute(this, agent, async () => { await skills.tidyInventory(agent.bot); });
+                return;
+            }
             let item = world.getNearestEntityWhere(agent.bot, entity => entity.name === 'item', 8);
             let empty_inv_slots = agent.bot.inventory.emptySlotCount();
             if (item && item !== this.prev_item && await world.isClearPath(agent.bot, item) && empty_inv_slots > 1) {
