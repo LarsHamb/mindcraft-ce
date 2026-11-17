@@ -3,7 +3,8 @@ import CommandProperty from "../property.js";
 import * as skills from "../../library/skills.js";
 import { toolResult } from "../../tool_result.js";
 import { getHome, setHome, inHomeVillage, FILL } from "../../library/protection.js";
-import { findVillage, bedsAround, villagersAround, chooseFreeBed, isNight, darkSpots, groundHoles, VILLAGE_RADIUS } from "../../library/village.js";
+import { findVillage, bedsAround, villagersAround, chooseFreeBed, isNight, darkSpots, groundHoles, VILLAGE_RADIUS,
+    villageWood, towerNeeds, findTowerSite, villageThreats, RANGED, TOWER_HEIGHT } from "../../library/village.js";
 import { makeStash, STASH_PLACE } from "../../library/stash.js";
 import { ripeCrops, CROPS } from "./harvestField.js";
 import Vec3 from "vec3";
@@ -68,8 +69,111 @@ async function sleep(agent) {
     catch (e) { return toolResult('failed', `Could not sleep: ${e.message}.${moved}`, 'sleep_failed'); }
     if (!home.sure) setHome(bot, {...getHome(bot), sure: true});
     bot.modes?.pause?.('unstuck');
-    while (bot.isSleeping && !bot.interrupt_code) await new Promise(r => setTimeout(r, 500));
+    // Lars, 17.11.: if the night is not skipped (not enough players asleep), get up and keep watch
+    const lay = Date.now();
+    while (bot.isSleeping && !bot.interrupt_code) {
+        await sleepMs(500);
+        if (Date.now() - lay > 15000 && isNight(bot)) {
+            try { await bot.wake(); } catch {}
+            const w = await watch(agent);
+            return toolResult(w.outcome || 'ok', `Respawn point set at my bed ${fmt(bed)}. Not enough players asleep, so I got up and kept watch: ${w.message || w.reason || ''}${moved}`);
+        }
+    }
     return toolResult('ok', `Slept in my bed at ${fmt(bed)}; the respawn point is here.${moved}`);
+}
+
+const sleepMs = ms => new Promise(r => setTimeout(r, ms));
+
+/** Night watch (and raids): wait at the tower or the bell, fight mobs that come into the village. */
+async function watch(agent) {
+    const bot = agent.bot;
+    const home = getHome(bot);
+    if (!home?.bell) return toolResult('blocked', 'No home village yet: village move_in first.', 'no_home');
+    const center = v3(home.bell);
+    const t = agent.memory_bank?.recallPlace?.('wachturm');
+    const post = t ? new Vec3(Math.floor(t[0]), Math.floor(t[1]), Math.floor(t[2])) : center;
+    const toPost = () => bot.entity.position.distanceTo(post) > 3 ? skills.goToPosition(bot, post.x, post.y, post.z, t ? 0 : 3).catch(() => false) : true;
+    await toPost();
+    const start = Date.now();
+    let kills = 0;
+    while (!bot.interrupt_code && Date.now() - start < 7 * 60000) {
+        const threats = villageThreats(bot, center);
+        if (!isNight(bot) && !threats.length) break;
+        if (bot.health <= 8) { await toPost(); await sleepMs(3000); continue; }
+        const me = bot.entity.position;
+        // ranged mobs only when they are close; never walk out to them
+        const target = threats.filter(e => !RANGED.test(e.name) || e.position.distanceTo(me) < 6)
+            .sort((a, b) => (a.name === 'creeper') - (b.name === 'creeper') || a.position.distanceTo(me) - b.position.distanceTo(me))[0];
+        if (!target) { await sleepMs(2000); continue; }
+        if (await skills.attackEntity(bot, target, true)) kills++;
+        if (bot.entity.position.distanceTo(post) > 12) await toPost();
+    }
+    if (bot.interrupt_code) return toolResult('cancelled', `Watch stopped after ${kills} kills.`, 'interrupted');
+    const why = isNight(bot) ? 'watch time is up, call village watch again if the night goes on' : 'the night is over';
+    return toolResult('ok', `Kept watch at ${t ? 'the watchtower' : 'the bell'}: ${kills} mobs defeated, ${why}.`);
+}
+
+/** Jump and put a block under the feet (tower up one block). */
+async function jumpPlace(bot, name) {
+    const item = bot.inventory.items().find(i => i.name === name);
+    if (!item) return false;
+    await bot.equip(item, 'hand');
+    const p = bot.entity.position.floored();
+    const ref = bot.blockAt(p.offset(0, -1, 0));
+    if (!ref || ref.boundingBox !== 'block') return false;
+    await bot.look(bot.entity.yaw, -Math.PI / 2, true);
+    bot.setControlState('jump', true);
+    const t0 = Date.now();
+    while (bot.entity.position.y < p.y + 1.1 && Date.now() - t0 < 1200) await sleepMs(30);
+    try { await bot.placeBlock(ref, new Vec3(0, 1, 0)); } catch {}
+    bot.setControlState('jump', false);
+    await sleepMs(400);
+    return bot.blockAt(p)?.name === name;
+}
+
+async function haveOrCraft(bot, name, want, per) {
+    const have = () => count(bot, new RegExp(`^${name}$`));
+    if (have() < want) await skills.craftRecipe(bot, name, Math.ceil((want - have()) / per)).catch(() => {});
+    return have();
+}
+
+/** A watchtower in the village style at the village edge (Lars, 17.11.: village chief, safety). */
+async function tower(agent) {
+    const bot = agent.bot;
+    const home = getHome(bot);
+    if (!home?.bell) return toolResult('blocked', 'No home village yet: village move_in first.', 'no_home');
+    const old = agent.memory_bank?.recallPlace?.('wachturm');
+    if (old) return toolResult('ok', `The village already has my watchtower at ${old.map(Math.round).join(',')}. Keep watch there at night (village watch).`);
+    const center = v3(home.bell), wood = villageWood(bot, center), need = towerNeeds(wood);
+    const planks = `${wood}_planks`, fence = `${wood}_fence`;
+    await haveOrCraft(bot, planks, need[planks] + 2, 4);
+    await haveOrCraft(bot, fence, need[fence], 3);
+    await haveOrCraft(bot, 'ladder', need.ladder, 3);
+    await haveOrCraft(bot, 'torch', need.torch, 4);
+    const short = ([n, c]) => count(bot, new RegExp(`^${n}$`)) < c;
+    const missing = Object.entries(need).filter(short).map(([n, c]) => `${c - count(bot, new RegExp(`^${n}$`))} ${n}`);
+    if (missing.length) return toolResult('blocked', `For a watchtower in the village style (${wood}) I still need ${missing.join(', ')} (about ${Math.ceil((need[planks] + 20) / 4)} ${wood}_log in all). Get them, then village tower again.`, 'materials');
+    const site = findTowerSite(bot, center, bot.entity.position);
+    if (!site) return toolResult('blocked', 'No flat free spot at the village edge for a tower (5x5, away from houses, paths and fields).', 'no_site');
+    await skills.goToPosition(bot, site.x + 0.5, site.y, site.z + 0.5, 0);
+    if (!bot.entity.position.floored().equals(site))
+        return toolResult('failed', `Could not stand on the tower spot ${fmt(site)}.`, 'move_failed');
+    bot.modes?.pause?.('unstuck');
+    const ring = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    let levels = 0;
+    for (let l = 0; l < TOWER_HEIGHT && !bot.interrupt_code; l++) {
+        const y = site.y + l;
+        for (const [dx, dz] of ring) await skills.placeBlock(bot, planks, site.x + dx, y, site.z + dz);
+        await skills.placeBlock(bot, 'ladder', site.x, y, site.z + 2, 'north');
+        if (!await jumpPlace(bot, planks)) break;
+        levels++;
+    }
+    if (levels < TOWER_HEIGHT) return toolResult('failed', `Tower stopped at level ${levels}/${TOWER_HEIGHT} at ${fmt(site)} (could not climb). Its blocks are mine; finish or remove it.`, 'tower_failed');
+    const top = site.y + TOWER_HEIGHT;
+    for (const [dx, dz] of ring) if (!(dx === 0 && dz === 1)) await skills.placeBlock(bot, fence, site.x + dx, top, site.z + dz);
+    for (const [dx, dz] of ring.slice(4)) await skills.placeBlock(bot, 'torch', site.x + dx, top + 1, site.z + dz);
+    agent.memory_bank?.rememberPlace?.('wachturm', site.x, top, site.z);
+    return toolResult('ok', `Watchtower built at ${fmt(site)} (${wood}, ${TOWER_HEIGHT} high, ladder on the south side, fence and torches on top). Remembered 'wachturm'. Keep watch there at night (village watch).`);
 }
 
 async function care(agent) {
@@ -125,14 +229,14 @@ class VillageTool extends BaseTool {
     constructor() {
         super(
             "village",
-            "Your village home. move_in: find a village nearby (bell, beds, villagers), move into a free bed and remember it ('zuhause', 'dorf'), with your own chest there. sleep: at night sleep in your bed (respawn point). care: keep the village nice - harvest and replant its fields, torches where it is dark, fill holes. Care only: never break or change houses, other chests, workstations, beds or villagers.",
-            [new CommandProperty("mode", "move_in, sleep or care (default).", "string", false)]
+            "Your village home; you are its chief and its guard. move_in: find a village nearby (bell, beds, villagers), move into a free bed and remember it ('zuhause', 'dorf'), with your own chest there. sleep: at night sleep in your bed (respawn point); if the night is not skipped you get up and keep watch. care: harvest and replant its fields, torches where it is dark, fill holes. tower: build a watchtower in the village wood style at the village edge. watch: guard the village from the tower or the bell and fight mobs coming in (night, raids). Never break or change existing houses, other chests, workstations, beds, villagers or golems.",
+            [new CommandProperty("mode", "move_in, sleep, care (default), tower or watch.", "string", false)]
         );
     }
 
     async execute(agent, mode = 'care') {
-        mode = ['move_in', 'sleep', 'care'].includes(mode) ? mode : 'care';
-        const run = {move_in: moveIn, sleep, care}[mode];
+        mode = ['move_in', 'sleep', 'care', 'tower', 'watch'].includes(mode) ? mode : 'care';
+        const run = {move_in: moveIn, sleep, care, tower, watch}[mode];
         return await agent.actions.runAction(`action:village`, () => run(agent), {timeout: mode === 'sleep' ? 10 : 8});
     }
 }

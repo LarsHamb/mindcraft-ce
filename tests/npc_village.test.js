@@ -91,7 +91,7 @@ test('home village allows care work but not building', () => {
     assert.equal(villageCare(bot, new Vec3(3, 1, 3), 'torch'), 'torch');
     assert.equal(villageCare(bot, new Vec3(10, 1, 10), 'wheat_seeds'), 'sowing');
     assert.equal(villageCare(bot, new Vec3(3, 1, 3), 'wheat_seeds'), null, 'seeds only on farmland');
-    assert.equal(villageCare(bot, new Vec3(3, 1, 3), 'oak_planks'), null, 'no building');
+    assert.equal(villageCare(bot, new Vec3(-3, 1, 4), 'oak_planks'), null, 'no building onto a house');
     assert.equal(villageCare(bot, new Vec3(3, 1, 3), 'dirt'), null, 'flat ground is no hole');
     assert.ok(inHomeHouse(bot, new Vec3(8, 1, 2)));
     assert.equal(villageCare(bot, new Vec3(8, 1, 2), 'chest'), 'own chest');
@@ -128,4 +128,50 @@ test('night detection', () => {
     assert.equal(isNight({time: {timeOfDay: 13000}}), true);
     assert.equal(isNight({time: {timeOfDay: 6000}}), false);
     assert.equal(isNight({time: {timeOfDay: 6000}, thunderState: 1}), true);
+});
+
+import { villageWood, towerNeeds, villageThreats, RANGED } from '../src/agent/library/village.js';
+import { ignoreUnmet, notePlayersMet, hasMet } from '../src/agent/library/meeting.js';
+import { newBuildSpot } from '../src/agent/library/protection.js';
+
+test('new buildings in the home village: allowed on free ground, not next to houses or on paths', () => {
+    settings.protected_areas = [];
+    const {bot, set} = world();
+    setHome(bot, {bell: {x: 0, y: 1, z: 0}, bed: {x: 6, y: 1, z: 0}});
+    set(10, 1, 10, 'spruce_planks');
+    set(-8, 0, -8, 'dirt_path');
+    assert.equal(villageCare(bot, new Vec3(20, 1, 20), 'spruce_planks'), 'new build');
+    assert.equal(villageCare(bot, new Vec3(11, 1, 11), 'spruce_planks'), null, 'touching a house');
+    assert.equal(newBuildSpot(bot, new Vec3(-8, 1, -8)), false, 'not on a village path');
+    assert.equal(villageCare(bot, new Vec3(70, 1, 0), 'spruce_planks'), null, 'outside the village nothing changes');
+    setHome(bot, null);
+});
+
+test('village wood style, tower needs and threats', () => {
+    const {bot, set} = world();
+    for (let i = 0; i < 6; i++) set(5 + i, 1, 5, 'spruce_planks');
+    set(9, 1, 9, 'oak_log');
+    assert.equal(villageWood(bot, new Vec3(0, 1, 0)), 'spruce');
+    const need = towerNeeds('spruce', 6);
+    assert.equal(need.spruce_planks, 54);
+    assert.equal(need.ladder, 6);
+    bot.entities = {1: {name: 'zombie', position: new Vec3(10, 1, 0)}, 2: {name: 'cow', position: new Vec3(3, 1, 0)}, 3: {name: 'skeleton', position: new Vec3(90, 1, 0)}};
+    assert.deepEqual(villageThreats(bot, new Vec3(0, 1, 0)).map(e => e.name), ['zombie']);
+    assert.ok(RANGED.test('pillager') && !RANGED.test('zombie'));
+});
+
+test('meet before talk: off by default, then strangers are ignored until met', () => {
+    const {bot} = world();
+    settings.meet_before_talk = false;
+    assert.equal(ignoreUnmet(bot, 'Fremder'), false);
+    settings.meet_before_talk = true;
+    settings.protection_admins = ['Lars'];
+    bot.players = {Fremder: {entity: {position: new Vec3(100, 1, 100)}}, Nah: {entity: {position: new Vec3(5, 1, 5)}}};
+    assert.equal(ignoreUnmet(bot, 'Fremder'), true);
+    assert.equal(ignoreUnmet(bot, 'Lars'), false, 'admins always');
+    assert.equal(ignoreUnmet(bot, 'Nah'), false, 'met when near');
+    bot.players.Fremder.entity.position = new Vec3(10, 1, 0);
+    notePlayersMet(bot);
+    assert.equal(hasMet(bot, 'Fremder'), true);
+    settings.meet_before_talk = false;
 });

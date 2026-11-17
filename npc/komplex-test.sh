@@ -125,8 +125,8 @@ if dran blaetter; then
   nachoben
   szene blaetter "Sammle bitte 10 Eichenblaetter." 120
 fi
-# 5h) Dorf (NUR=dorf,dorfnacht,dorfpflege): Dorf suchen und einziehen, nachts im eigenen Bett schlafen, Dorf pflegen
-if dran dorf || dran dorfnacht || dran dorfpflege; then
+# 5h) Dorf (NUR=dorf,dorfnacht,dorfpflege,dorfturm,dorfwache): Dorf suchen und einziehen, nachts im eigenen Bett schlafen, Dorf pflegen
+if dran dorf || dran dorfnacht || dran dorfpflege || dran dorfturm || dran dorfwache; then
   V=$(./rcon26.sh "execute at MindCE run locate structure #minecraft:village" | sed -n "s/.*at \[\([-0-9]*\), [^,]*, \([-0-9]*\)\].*/\1 \2/p")
   echo "dorf gefunden bei: $V" | tee -a $E
   if [ -n "$V" ] && dran dorf; then
@@ -147,6 +147,15 @@ if dran dorf || dran dorfnacht || dran dorfpflege; then
     ./rcon26.sh "time set 1000" "give MindCE torch 16" "give MindCE dirt 32" "give MindCE wheat_seeds 16"       "fill $((BX-40)) $((BY-6)) $((BZ-40)) $BX $((BY+6)) $BZ wheat[age=7] replace wheat" "fill $BX $((BY-6)) $((BZ-40)) $((BX+40)) $((BY+6)) $BZ wheat[age=7] replace wheat"       "fill $((BX-40)) $((BY-6)) $BZ $BX $((BY+6)) $((BZ+40)) wheat[age=7] replace wheat" "fill $BX $((BY-6)) $BZ $((BX+40)) $((BY+6)) $((BZ+40)) wheat[age=7] replace wheat" | tee -a $E
     szene dorfpflege "Kuemmere dich bitte um dein Dorf: Felder ernten und nachpflanzen, Fackeln setzen, Loecher stopfen." 480
     grep -c "refused" $J | sed "s/^/abgelehnte Eingriffe im Journal: /" | tee -a $E
+  fi
+  if [ -n "$H" ] && dran dorfturm; then
+    ./rcon26.sh "time set 1000" "give MindCE oak_log 24" "give MindCE spruce_log 24" "give MindCE acacia_log 24" "give MindCE birch_log 24" "give MindCE stick 16" "give MindCE coal 4" >/dev/null
+    szene dorfturm "Bau bitte einen Wachturm fuer dein Dorf, passend zum Baustil." 480
+  fi
+  if [ -n "$H" ] && dran dorfwache; then
+    set -- $H; BX=$1; BY=$2; BZ=$3
+    ./rcon26.sh "time set 13000" "give MindCE iron_sword 1" "give MindCE shield 1" "summon zombie $((BX+12)) $((BY+1)) $BZ" "summon zombie $((BX-12)) $((BY+1)) $BZ" "summon spider $BX $((BY+1)) $((BZ+12))" >/dev/null
+    szene dorfwache "Es ist Nacht und Monster kommen ins Dorf. Halte bitte Wache und verteidige das Dorf." 480
   fi
 fi
 # 6) Tod und Rueckholen: Spawnpunkt 25 Bloecke weg, dann sterben

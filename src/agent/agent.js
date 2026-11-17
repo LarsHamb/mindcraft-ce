@@ -6,6 +6,7 @@ import { Prompter } from '../models/prompter.js';
 import { initModes } from './modes.js';
 import { initBot } from '../utils/mcdata.js';
 import { handleProtectionChat } from './library/protection_chat.js';
+import { ignoreUnmet } from './library/meeting.js';
 import { germanize } from './npc_phrases.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
 import { ActionManager } from './action_manager.js';
@@ -174,6 +175,8 @@ export class Agent {
                 if (ignore_messages.some((m) => message.startsWith(m))) return;
                 // protected areas from chat (Xaero waypoints, !schutz): handled locally, no model request
                 if (this.bot && handleProtectionChat(this, username, message)) return;
+                // meet_before_talk (default off): strangers are ignored until they met him or found his village
+                if (this.bot && ignoreUnmet(this.bot, username)) { console.log(this.name, 'ignores', username, '(not met yet)'); return; }
 
                 this.shut_up = false;
 

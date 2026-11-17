@@ -141,7 +141,24 @@ export function villageCare(bot, target, heldName) {
     if (SEEDS.test(heldName) && below?.name === 'farmland') return 'sowing';
     if (FILL.test(heldName) && isGroundHole(bot, target)) return 'hole';
     if (heldName === 'chest' && inHomeHouse(bot, target)) return 'own chest';
+    // Lars, 17.11.: as village chief he may add NEW buildings in the village style (tower, fence), never touching
+    // existing ones: no foreign building block within 2 blocks, not on paths, fields or crops.
+    if (NEW_BUILD.test(heldName) && newBuildSpot(bot, target)) return 'new build';
     return null;
+}
+
+const NEW_BUILD = /(_planks|_log|_fence|_slab|_stairs|^ladder|^cobblestone|^stone_bricks|_wall|^torch|^lantern|sandstone)$/;
+export function newBuildSpot(bot, target) {
+    const s = state(bot);
+    const below = bot.blockAt(target.offset(0, -1, 0));
+    if (below && /^(dirt_path|farmland)$|wheat|carrots|potatoes|beetroots|_bed$|^bell$/.test(below.name)) return false;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = -2; dy <= 2; dy++) {
+        const q = target.offset(dx, dy, dz);
+        const b = bot.blockAt(q);
+        if (!b || !BUILDING.test(b.name) || /torch$|lantern$/.test(b.name)) continue;
+        if (s.own.get(key(q)) !== b.name) return false;
+    }
+    return true;
 }
 
 // Returns null if the bot may break this block, otherwise the reason.

@@ -115,3 +115,53 @@ export function groundHoles(bot, center, radius = 32, max = 12) {
     }
     return out.sort((a, b) => a.y - b.y || flat(a, center) - flat(b, center)).slice(0, max);
 }
+
+const WOODS = ['oak', 'spruce', 'birch', 'jungle', 'acacia', 'dark_oak', 'mangrove', 'cherry', 'pale_oak', 'bamboo'];
+/** The wood the village houses are built of (most planks/logs around the bell); oak if unclear. */
+export function villageWood(bot, center, radius = VILLAGE_RADIUS) {
+    const n = {};
+    const found = bot.findBlocks({matching: b => !!b && /_(planks|log|stairs|fence)$/.test(b.name), maxDistance: radius, count: 400}) || [];
+    for (const p of found) {
+        if (flat(p, center) > radius) continue;
+        const name = bot.blockAt(p)?.name || '';
+        const w = WOODS.filter(w => name.startsWith(w + '_')).sort((a, b) => b.length - a.length)[0];
+        if (w) n[w] = (n[w] || 0) + 1;
+    }
+    return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || 'oak';
+}
+
+export const TOWER_HEIGHT = 6;
+/** What a watchtower needs: solid 3x3 column of planks, a ladder outside, fences and torches on top. */
+export function towerNeeds(wood, h = TOWER_HEIGHT) {
+    return {[`${wood}_planks`]: 9 * h, [`${wood}_fence`]: 7, ladder: h, torch: 4};
+}
+
+/** A tower site at the village edge: flat 5x5 natural ground, nothing built within 3 blocks. */
+export function findTowerSite(bot, center, near) {
+    const sites = [];
+    for (let r = 16; r <= 28; r += 4) for (let a = 0; a < 16; a++) {
+        const x = Math.round(center.x + r * Math.cos(a * Math.PI / 8)), z = Math.round(center.z + r * Math.sin(a * Math.PI / 8));
+        const p = surfaceAt(bot, x, z, center.y);
+        if (!p || !inHomeVillage(bot, p)) continue;
+        let ok = true;
+        for (let dx = -2; dx <= 2 && ok; dx++) for (let dz = -2; dz <= 2 && ok; dz++) {
+            const q = surfaceAt(bot, x + dx, z + dz, p.y);
+            const g = q && bot.blockAt(q.offset(0, -1, 0));
+            if (!q || q.y !== p.y || !g || /^(dirt_path|farmland)$|water/.test(g.name)) ok = false;
+        }
+        if (!ok) continue;
+        const built = bot.findBlocks({matching: b => !!b && BUILDING.test(b.name) && !/torch$/.test(b.name), maxDistance: 3, point: p, count: 1}) || [];
+        if (built.some(q => Math.abs(q.x - p.x) <= 3 && Math.abs(q.z - p.z) <= 3 && Math.abs(q.y - p.y) <= 4)) continue;
+        sites.push(p);
+    }
+    const ref = near || center;
+    return sites.sort((a, b) => flat(a, ref) - flat(b, ref))[0] || null;
+}
+
+const HOSTILE = /^(zombie|husk|drowned|zombie_villager|spider|cave_spider|vindicator|evoker|ravager|witch|pillager|skeleton|stray|bogged|creeper|slime|phantom|vex|illusioner)$/;
+export const RANGED = /^(pillager|skeleton|stray|bogged|witch|evoker|illusioner)$/;
+/** Hostile mobs inside the village, nearest to the center first. */
+export function villageThreats(bot, center, radius = VILLAGE_RADIUS) {
+    return Object.values(bot.entities || {}).filter(e => e?.position && HOSTILE.test(e.name || '') && flat(e.position, center) <= radius
+        && Math.abs(e.position.y - center.y) <= 16).sort((a, b) => flat(a.position, center) - flat(b.position, center));
+}
