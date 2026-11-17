@@ -1145,22 +1145,35 @@ export async function consume(bot, itemName="") {
     if (bot.food >= 20 && !/potion|milk|golden_apple|chorus/.test(item.name)) { log(bot, `Not hungry (food ${bot.food}/20).`); return true; }
     const wasAuto = autoEat?.opts?.enabled ?? autoEat?.enabled ?? true;
     try { autoEat?.disableAuto?.(); } catch {}
+    // Boys server 17.11.: a combat reflex switched to the sword mid-bite; mineflayer then counts the bite as done
+    // ("Consumed mutton (food 5 -> 5)" six times with one mutton). Keep the reflexes still for the 2 s of eating
+    // and only count it when the food bar rises or the item is gone.
+    for (const m of ['self_defense', 'ranged_threat', 'cowardice', 'hunting', 'item_collecting', 'torch_placing'])
+        try { bot.modes?.pause?.(m); } catch {}
+    const count = () => bot.inventory.items().filter(i => i.name === item.name).reduce((n, i) => n + i.count, 0);
+    const eaten = async (food0, count0) => {
+        for (let i = 0; i < 10; i++) {
+            if (bot.food > food0 || count() < count0) return true;
+            await new Promise(r => setTimeout(r, 100));
+        }
+        return false;
+    };
     try {
         const before = bot.food;
         for (let attempt = 1; attempt <= 2; attempt++) {
             const current = bot.inventory.findInventoryItem(item.name);
             if (!current) break;
             await bot.equip(current, 'hand');
-            try {
-                await bot.consume();
-                log(bot, `Consumed ${item.name} (food ${before} -> ${bot.food}).`);
-                return true;
-            } catch (error) {
-                if (/Food is full/i.test(error.message)) { log(bot, `Not hungry (food ${bot.food}/20).`); return true; }
-                if (bot.food > before) { log(bot, `Consumed ${item.name} (food ${before} -> ${bot.food}).`); return true; }
-                if (attempt === 2) { log(bot, `Could not eat ${item.name}: ${error.message}`); return false; }
-                await new Promise(r => setTimeout(r, 500));
+            const food0 = bot.food, count0 = count();
+            let error = null;
+            try { await bot.consume(); } catch (e) { error = e; }
+            if (error && /Food is full/i.test(error.message)) { log(bot, `Not hungry (food ${bot.food}/20).`); return true; }
+            if (await eaten(food0, count0)) { log(bot, `Consumed ${item.name} (food ${before} -> ${bot.food}).`); return true; }
+            if (attempt === 2) {
+                log(bot, `Could not eat ${item.name}: ${error ? error.message : 'eating was interrupted'} (food still ${bot.food}). Get away from mobs first (dig in or retreat), then eat again.`);
+                return false;
             }
+            await new Promise(r => setTimeout(r, 500));
         }
         return false;
     } finally {

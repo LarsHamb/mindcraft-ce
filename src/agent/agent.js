@@ -530,6 +530,8 @@ export class Agent {
             if (jsonMsg.translate && jsonMsg.translate.startsWith('death') && message.startsWith(this.name)) {
                 console.log('Agent died: ', message);
                 journal('death', {message}, this.bot);
+                // deaths in a row (Boys 17.11.: 30 deaths in one night): recover_items digs in instead of walking out
+                this.recentDeaths = [...(this.recentDeaths || []).filter(t => Date.now() - t < 10 * 60000), Date.now()];
                 let death_pos = this.bot.entity.position;
                 this.memory_bank.rememberPlace('last_death_position', death_pos.x, death_pos.y, death_pos.z);
                 let death_pos_text = null;

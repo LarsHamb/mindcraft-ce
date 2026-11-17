@@ -10,6 +10,7 @@ import { journal } from './journal.js';
 import pf from 'mineflayer-pathfinder';
 import { RANGED, ILLAGERS, markIllagers, dangerAt } from './library/danger.js';
 import * as stashLib from './library/stash.js';
+import { isNight } from './library/village.js';
 
 async function say(agent, message) {
     agent.bot.modes.behavior_log += message + '\n';
@@ -28,6 +29,21 @@ async function say(agent, message) {
 // the order of this list matters! first modes will be prioritized
 // while update functions are async, they should *not* be awaited longer than ~100ms as it will block the update loop
 // to perform longer actions, use the execute function which won't block the update loop
+/** Dig 2 blocks down where it stands and close the hole above its head with the dug dirt or stone. */
+export async function digIn(bot) {
+    const start = bot.entity.position.floored();
+    const below = bot.blockAt(start.offset(0, -1, 0));
+    if (!below || !/dirt|grass_block|stone|deepslate|sand|gravel|podzol|andesite|diorite|granite|tuff|clay|mud/.test(below.name)) return false;
+    try { await skills.digDown(bot, 2); } catch { return false; }
+    await skills.pickupNearbyItems(bot).catch(() => {});
+    const feet = bot.entity.position.floored();
+    if (feet.y > start.y - 2) return false;
+    const fill = bot.inventory.items().find(i => /^(dirt|cobblestone|cobbled_deepslate|sand|gravel|andesite|diorite|granite|tuff|coarse_dirt)$/.test(i.name));
+    if (!fill) return false;
+    const top = feet.offset(0, 2, 0);
+    try { return await skills.placeBlock(bot, fill.name, top.x, top.y, top.z, 'side'); } catch { return false; }
+}
+
 const modes_list = [
     {
         name: 'self_preservation',
@@ -199,12 +215,15 @@ const modes_list = [
         interrupts: ['all'],
         on: true,
         active: false,
-        max_stuck_time: 20,
+        max_stuck_time: 30,
         update: async function (agent) {
             if (agent.isIdle() || !agent.actions.executing) return;
             const bot = agent.bot;
             agent.actions.progress?.observe(bot);
-            if (!agent.actions.progress || agent.actions.progress.healthy(this.max_stuck_time*1000)) return;
+            // long walks and searches compute paths while standing (Boys 17.11.: 38 interruptions): give them longer
+            const slow = /search|goTo|recover|follow/i.test(agent.actions.currentActionLabel || '');
+            const limit = (slow ? 45 : this.max_stuck_time) * 1000;
+            if (!agent.actions.progress || agent.actions.progress.healthy(limit)) return;
             say(agent, 'I\'m stuck!');
             journal('stuck', {action: agent.actions.currentActionLabel}, bot);
             execute(this, agent, async () => {
@@ -323,6 +342,21 @@ const modes_list = [
             const far = String(bot.game.dimension) !== String(r.dimension) || bot.entity.position.distanceTo(new Vec3(r.x, r.y, r.z)) > 400;
             const keepInventory = r.itemsAtDeath > 0 && items >= r.itemsAtDeath * 0.5;
             if (keepInventory) return finish(null);
+            // Boys 17.11.: respawned naked at night, walked out to the death spot and died again, 30 times in a row.
+            // At night after a second death, or with the death spot far away, dig in until morning instead.
+            const streak = (agent.recentDeaths || []).filter(t => Date.now() - t < 10 * 60000).length;
+            const dist = bot.entity.position.distanceTo(new Vec3(r.x, r.y, r.z));
+            const armored = bot.inventory.slots.slice(5, 9).some(Boolean);
+            if (isNight(bot) && !armored && (streak >= 2 || dist > 24) && !r.dugIn) {
+                r.dugIn = true;
+                agent.emergencyUntil = Date.now() + 60000;
+                execute(this, agent, async () => {
+                    say(agent, streak >= 2 ? 'Schon wieder tot. Ich grabe mich bis zum Morgen ein.' : 'Nachts ohne Ruestung? Ich grabe mich erst mal ein.');
+                    const ok = await digIn(bot);
+                    finish(`It is night and you respawned without armor${streak >= 2 ? ` after ${streak} deaths in 10 minutes` : ''}: ${ok ? 'you dug in 2 blocks deep and closed the hole above you' : 'digging in did not work, build a quick shelter (buildShelter) or dig down 2 and cover yourself'}. Stay there until morning (stay 60 repeatedly, eat if hungry); your dropped things are lost or wait until day. Then start again with wood and tools, or take from your stash.`);
+                }, 2).finally(release);
+                return;
+            }
             const goRecover = r.recoverable && !far && Date.now() < r.until && r.tries < 3;
             const hasStash = Boolean(agent.memory_bank?.recallPlace?.(stashLib.STASH_PLACE));
             if (!goRecover && !hasStash) return finish(r.recoverable ? 'Could not get your dropped things back (too far or too late). Start again with wood and tools.' : null);

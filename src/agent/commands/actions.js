@@ -149,7 +149,18 @@ export const actionsList = [
             'search_range': { type: 'float', description: 'The range to search for the entity.', domain: [32, 512] }
         },
         perform: runAsAction(async (agent, entity_type, range) => {
-            return await skills.goToNearestEntity(agent.bot, entity_type, 4, range);
+            // Boys 17.11.: "no cow in 64 blocks" 29 times at the same place. Remember a failed search for 10 min.
+            const bot = agent.bot, p = bot.entity.position;
+            const key = `${entity_type}@${Math.round(p.x / 48)},${Math.round(p.z / 48)}`;
+            agent.failedSearches ??= new Map();
+            const at = agent.failedSearches.get(key);
+            if (at && Date.now() - at < 10 * 60000) {
+                skills.log(bot, `Already searched here ${Math.round((Date.now() - at) / 60000)} min ago: no ${entity_type} nearby. Do not search here again; go at least 100 blocks away, or get food another way (field, fishing, other animals).`);
+                return false;
+            }
+            const ok = await skills.goToNearestEntity(bot, entity_type, 4, range);
+            if (ok) agent.failedSearches.delete(key); else agent.failedSearches.set(key, Date.now());
+            return ok;
         })
     },
     {
