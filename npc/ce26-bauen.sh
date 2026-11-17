@@ -34,6 +34,8 @@ open(p, "w").write(s.replace(old, new))
 EOF
 # Chat-Pruefsumme (1.21.5+): Reihenfolge ab dem aeltesten Eintrag wie vanilla (sonst Kick nach 20 Chatnachrichten)
 cp "$HOME/mindcraft-ce/npc/checksums.cjs" mineflayer/node_modules/minecraft-protocol/src/datatypes/checksums.js
+# Platzieren: nicht 5 s auf ein verpasstes Block-Update warten
+python3 "$HOME/mindcraft-ce/npc/patch_place_block.py" mineflayer/lib/plugins/place_block.js
 cat > "$B/Dockerfile" <<'EOF'
 FROM mindcraft-ce-test
 RUN rm -rf /app/node_modules/mineflayer /app/node_modules/minecraft-data /app/node_modules/minecraft-data-base
