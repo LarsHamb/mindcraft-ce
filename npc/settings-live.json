@@ -1,4 +1,5 @@
 {
+ "voice_port": 8091,
  "auto_open_ui": false,
  "host": "192.168.178.80",
  "port": 11116,

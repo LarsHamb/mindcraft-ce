@@ -8,6 +8,7 @@ mkdir -p $L/bots-live
 cp /home/lars/mindcraft-ce/npc/cheesynpc.json $L/profiles/cheesynpc.json
 docker rm -f mindcraft-live-bot >/dev/null 2>&1
 docker run -d --name mindcraft-live-bot --restart unless-stopped --network karimnet --user 1000:1000 \
+  -p 127.0.0.1:8091:8091 \
   -v /home/lars/fabric-test/config/karim-voice.json:/secrets/kv.json:ro \
   -v /home/lars/karim-bot/.auth:/auth \
   -v $L/bots-live:/app/bots \

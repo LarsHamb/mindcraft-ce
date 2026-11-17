@@ -1,0 +1,9 @@
+{
+  "botUrl": "http://127.0.0.1:8091",
+  "apiKeyFile": "/home/lars/fabric-test/config/karim-voice.json",
+  "model": "gemini-3.1-flash-live-preview",
+  "sttUrl": "http://127.0.0.1:8000",
+  "sttModel": "Systran/faster-whisper-base",
+  "nearBlocks": 32,
+  "players": []
+}

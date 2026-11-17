@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "cheesy_voice",
+  "version": "1.0.0",
+  "name": "CheesyNPC Voice",
+  "description": "Verbindet Simple Voice Chat mit Gemini Live und dem NPC CheesyNPC (Stimme pro Charakter).",
+  "environment": "server",
+  "entrypoints": {
+    "voicechat": ["de.cheesy.voice.CheesyVoice"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "voicechat": "*"
+  }
+}

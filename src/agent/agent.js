@@ -9,6 +9,7 @@ import { handleProtectionChat } from './library/protection_chat.js';
 import { ignoreUnmet } from './library/meeting.js';
 import { handleCharacterChat, autoSwitch, announceSwitch } from './library/characters.js';
 import { installChatFilter } from './library/chat_filter.js';
+import { startVoiceBridge } from './library/voice_bridge.js';
 import { germanize } from './npc_phrases.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
 import { ActionManager } from './action_manager.js';
@@ -206,6 +207,8 @@ export class Agent {
         }
 
 		this.respondFunc = respondFunc;
+        // voice chat bridge for the server mod (settings.voice_port, default off)
+        startVoiceBridge(this);
 
         // optional daily character switch (settings.character_auto_switch, default off)
         const rotate = () => { try { const id = autoSwitch(this); if (id) announceSwitch(this, id); } catch (e) { console.warn('character switch:', e.message); } };
