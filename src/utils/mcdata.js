@@ -2,6 +2,7 @@ import minecraftData from 'minecraft-data';
 import settings from '../agent/settings.js';
 import { guardBotActions } from '../agent/action_context.js';
 import { installProtection } from '../agent/library/protection.js';
+import { installToolThrift } from '../agent/library/tool_thrift.js';
 import { createBot } from 'mineflayer';
 import prismarine_items from 'prismarine-item';
 import { pathfinder } from 'mineflayer-pathfinder';
@@ -176,7 +177,7 @@ export function initBot(username) {
     bot.loadPlugin(collectblock);
     bot.loadPlugin(autoEat);
     bot.loadPlugin(armorManager); // auto equip armor
-    bot.once('spawn', () => { guardBotActions(bot); installProtection(bot); });
+    bot.once('spawn', () => { guardBotActions(bot); installProtection(bot); installToolThrift(bot); });
     bot.once('resourcePack', () => {
         bot.acceptResourcePack();
     });

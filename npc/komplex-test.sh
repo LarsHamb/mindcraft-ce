@@ -23,7 +23,7 @@ while time.time() < end:
             e = json.loads(l)
             if e.get("at", 0) < t0: continue
             if e["type"] == "task_start" and e.get("forPlayer"): started = True
-            if e["type"] == "task_end" and e.get("forPlayer"):
+            if e["type"] == "task_end" and e.get("forPlayer") and (e.get("lastStep", True) or e.get("outcome") in ("blocked", "error")):
                 print(f"{e.get('outcome')}: {e.get('reason', '')[:110]}"); sys.exit()
     except OSError:
         pass
@@ -43,7 +43,7 @@ szene() { # $1 Name, $2 Auftrag, $3 Limit
 }
 
 dran() { [ -z "$NUR" ] || echo ",$NUR," | grep -q ",$1,"; }
-nachoben() { ./rcon26.sh "spreadplayers $X $Z 0 4 false MindCE" >/dev/null; sleep 4; ./rcon26.sh "tp Tester MindCE" >/dev/null; }
+nachoben() { ./rcon26.sh "spreadplayers $X $Z 0 4 false MindCE" >/dev/null; sleep 4; ./rcon26.sh "tp Tester MindCE" "execute as MindCE at @s run spawnpoint MindCE ~ ~ ~" >/dev/null; }
 pos() { ./rcon26.sh "data get entity MindCE Pos" | sed "s/.*\[\([-0-9]*\)\.[0-9]*d, \([-0-9]*\)\.[0-9]*d, \([-0-9]*\)\.[0-9]*d\].*/\1 \2 \3/"; }
 
 : > $E
@@ -92,6 +92,16 @@ if dran wertvoll; then
   szene wertvoll "Bau bitte einen Diamanten hier ab und behalte ihn." 180
   sleep 20
   ./rcon26.sh "clear MindCE minecraft:diamond 0" | tee -a $E
+fi
+# 5d) Diamantausruestung (NUR=diagear): mit leerem Inventar, Eisenspitzhacke und Vorrat; Diamanten holen und verarbeiten
+if dran diagear; then
+  nachoben
+  ./rcon26.sh "clear MindCE" | tee -a $E
+  sleep 2
+  ./rcon26.sh "give MindCE iron_pickaxe 1" "give MindCE cooked_beef 16" "give MindCE torch 48" "give MindCE cobblestone 64" "give MindCE stick 8" "give MindCE crafting_table 1" >/dev/null
+  szene diagear "Hol dir bitte Diamanten und mach dir daraus eine Diamantspitzhacke und dann so viel Diamantruestung wie du schaffst. Pass auf dich auf." 2100
+  ./rcon26.sh "data get entity MindCE Pos" | tee -a $E
+  ./rcon26.sh "clear MindCE minecraft:diamond 0" "clear MindCE minecraft:diamond_pickaxe 0" "clear MindCE minecraft:diamond_chestplate 0" "clear MindCE minecraft:diamond_helmet 0" "clear MindCE minecraft:diamond_leggings 0" "clear MindCE minecraft:diamond_boots 0" | tee -a $E
 fi
 # 6) Tod und Rueckholen: Spawnpunkt 25 Bloecke weg, dann sterben
 if dran tod; then

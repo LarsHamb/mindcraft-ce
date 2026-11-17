@@ -34,6 +34,10 @@ class DigStairsTool extends BaseTool {
         steps = Number.isFinite(steps) ? Math.max(1, Math.min(40, Math.round(steps))) : 16;
         const actionFn = async () => {
             const bot = agent.bot;
+            // the way back up: the top of the staircase is remembered as 'mineneingang' (only above ground)
+            const top = bot.entity.position;
+            const old = agent.memory_bank?.recallPlace?.('mineneingang');
+            if (top.y > 50 && (!old || Math.hypot(old[0] - top.x, old[2] - top.z) > 30)) agent.memory_bank?.rememberPlace?.('mineneingang', top.x, top.y, top.z);
             if (!DIRS[direction]) {
                 const yaw = bot.entity.yaw; // mineflayer: 0 = north (-z), PI/2 = west
                 const a = ((yaw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
@@ -88,7 +92,7 @@ class DigStairsTool extends BaseTool {
                 }
             }
             const p = bot.entity.position.floored();
-            return toolResult('ok', `Dug ${done} stair steps ${direction}${walled ? `, walled off ${walled} water/lava blocks` : ''}; now at ${p.x},${p.y},${p.z}. The way back up is the staircase.`);
+            return toolResult('ok', `Dug ${done} stair steps ${direction}${walled ? `, walled off ${walled} water/lava blocks` : ''}; now at ${p.x},${p.y},${p.z}. The way back up is the staircase (its top is the place 'mineneingang': goToRememberedPlace).`);
         };
         // a mine entrance is meant to stay open: no surface restore for its cells
         const guarded = async () => { agent.bot.__noRestore = true; try { return await actionFn(); } finally { agent.bot.__noRestore = false; } };

@@ -5,6 +5,8 @@ import { parseObject, functionTool } from './structured.js';
 export const brainTools=[
     functionTool('directTask','Assign the Task one concrete objective, briefing and constraints. Do not replace healthy work just to repeat it.',{
         objective:{type:'string'},briefing:{type:'string'},constraints:{type:'string'},tools:{type:'array',items:{type:'string'}},model:{type:'string'},replace:{type:'boolean'},
+        for_player:{type:'string',description:'Name of the player whose request this step serves, also for later steps of a bigger request. Omit for your own plans.'},
+        last_step:{type:'boolean',description:'For a player request split into several tasks: false while more steps follow, true (default) for the step that completes it.'},
     },['objective']),
     functionTool('injectNote','Give new context to the running Task without restarting it.',{note:{type:'string'}}),
     functionTool('stopTask','Cancel current work.',{}),

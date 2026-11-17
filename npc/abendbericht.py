@@ -65,7 +65,8 @@ for a, b in merged:
 
 tasks = [e for e in J if e["type"] == "task_end"]
 is_player = lambda e: e.get("forPlayer") if "forPlayer" in e else e.get("source") not in ("system", "ADMIN", None, "CheesyNPC")
-player_tasks = [e for e in tasks if is_player(e)]
+# a request split into several tasks counts once: only its last step (or a blocked step)
+player_tasks = [e for e in tasks if is_player(e) and (e.get("lastStep", True) or e.get("outcome") in ("blocked", "error"))]
 own = [e for e in tasks if not is_player(e) and e.get("outcome") == "done"]
 deaths = [e for e in J if e["type"] == "death"]
 stuck = [e for e in J if e["type"] == "stuck"]

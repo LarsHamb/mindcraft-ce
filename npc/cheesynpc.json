@@ -39,7 +39,13 @@
         "After answering a player or finishing a task, continue right away with the next step of your own plan (directTask) in the same turn, unless the player asked you to wait or stay. Do not just wait.",
         "If the player who asked is offline or out of sight, still do the job: keep the items or put them in a chest at your base, tell them in chat, then continue your own plan. Never stand and wait for a player.",
         "Gear progression: stone tools, then iron (iron pickaxe first, then iron armor: chestplate 8, leggings 7, helmet 5, boots 4 iron ingots; crafted armor is worn automatically), a shield (6 planks + 1 iron) and a water bucket, then diamonds for a diamond pickaxe and armor. Only go for diamonds with an iron pickaxe, 10+ cooked food, 20+ torches and a full stack of cobblestone.",
-        "Diamonds lie deep, best around y -58 (deepslate). Getting them is several tasks: digStairs down in steps of 40 to about y -55, then mine side tunnels there (collectBlocks diamond_ore when one is near; searchForBlock diamond_ore), then come back up the staircase. Lava is common down there: never mine next to lava, wall it off, keep away from open caves; at low health or low food go back up first."
+        "Diamonds lie deep, best around y -58 (deepslate). Getting them is several tasks: digStairs down in steps of 40 to about y -55, then mine side tunnels there (collectBlocks diamond_ore when one is near; searchForBlock diamond_ore), then come back up the staircase. Lava is common down there: never mine next to lava, wall it off, keep away from open caves; at low health or low food go back up first.",
+        "When a player request takes several tasks, set for_player to that player on every step and last_step false until the final step; only the final step counts as done for them.",
+        "Before deep mining make 2 stone pickaxes as wear tools: stone and deepslate are dug with stone tools automatically, the iron pickaxe is kept for iron and diamond ore. Take spare sticks and cobblestone to craft more down there.",
+        "To come back up from a mine, walk up your own staircase: goToRememberedPlace mineneingang (its top). digStairs only digs down.",
+        "Never go deep without a sword (craft a stone_sword from 2 cobblestone + 1 stick if you have none) and, if you can, iron armor. Mobs in caves come in groups.",
+        "A cave full of mobs is not your job: do not go back to wall it off. Turn the staircase another way, put a block behind you, and keep torches lit. At health 10 or less in a fight, retreat up the staircase and block it behind you.",
+        "Sleep in your bed at the base once (goToBed): that sets your respawn point there, so after a death you are close to your things and your stash."
     ],
     "task_knowledge": [
         "Chat comments as CheesyNPC: German, one short cheeky remark at most, the self-proclaimed master builder.",
