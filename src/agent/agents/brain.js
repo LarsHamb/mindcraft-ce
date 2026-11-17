@@ -1,6 +1,7 @@
 import { Goals, checklistItem } from '../goals/goals.js';
 import { toolCallMessage } from '../../models/_tool_request.js';
 import { parseObject, functionTool } from './structured.js';
+import { situation } from '../library/situation.js';
 
 export const brainTools=[
     functionTool('directTask','Assign the Task one concrete objective, briefing and constraints. Do not replace healthy work just to repeat it.',{
@@ -33,7 +34,7 @@ export class BrainAgent {
     constructor(agent,queue) {this.agent=agent;this.messageQueue=queue;this.goals=new Goals();this.message_history=[];this.active_goal=null;}
     async processRequest(source,message) {
         const task=this.agent.agentSystem?.currentDirective;
-        this.message_history.push({role:'user',content:`${source}: ${message}\nGoals:\n${this.goals.listFormattedGoals()}\nCurrent task: ${task?.objective||'none'}\nRecent outcome: ${this.lastOutcome||'none'}`});
+        this.message_history.push({role:'user',content:`${source}: ${message}\nGoals:\n${this.goals.listFormattedGoals()}\nCurrent task: ${task?.objective||'none'}\nRecent outcome: ${this.lastOutcome||'none'}\nLage: ${situation(this.agent)}`});
         if(this.message_history.length>80) {
             const next=this.message_history.findIndex((m,i)=>i>=this.message_history.length-40&&m.role==='user');
             if(next>0) this.message_history=this.message_history.slice(next);
