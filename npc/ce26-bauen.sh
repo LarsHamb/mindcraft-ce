@@ -48,3 +48,5 @@ RUN rm -rf /app/node_modules/mineflayer /app/node_modules/minecraft-data /app/no
 COPY nm/ /app/node_modules/
 EOF
 cd "$B" && docker build -q -t mindcraft-ce26 . && echo "mindcraft-ce26 gebaut"
+# alte, namenlose Zwischenstaende wegraeumen (17.11.: 71 davon fuellten die Platte mit 57 GB)
+docker image prune -f >/dev/null 2>&1 || true
