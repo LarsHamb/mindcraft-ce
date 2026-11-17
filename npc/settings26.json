@@ -88,7 +88,7 @@
         "breedAnimals",
         "stash",
         "harvestField",
-        "buildPen"
+        "buildPen", "village"
     ],
     "summary_chunk_size": 14,
     "max_messages": 20,

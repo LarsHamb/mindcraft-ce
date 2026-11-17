@@ -3,7 +3,7 @@ import * as world from './library/world.js';
 import * as mc from '../utils/mcdata.js';
 import settings from './settings.js'
 import convoManager from './conversation.js';
-import { protectedAreaAt, dueRestores, finishRestore, harvestRefusal } from './library/protection.js';
+import { protectedAreaAt, dueRestores, finishRestore, harvestRefusal, getHome } from './library/protection.js';
 import { nextToLava } from './library/mining.js';
 import Vec3 from 'vec3';
 import { journal } from './journal.js';
@@ -398,7 +398,8 @@ const modes_list = [
             const t = bot.time?.timeOfDay, day = bot.time?.day;
             if (Number.isFinite(t) && t >= 11000 && t < 12500 && day !== this.duskDay) {
                 this.duskDay = day;
-                wake('Night falls in about a minute. Go to your shelter, or build one now with buildShelter, or dig in; put torches around it. Do not stay in the open. If you have a bed at your base, sleep in it (goToBed): that also sets your respawn point there.');
+                if (getHome(bot)?.bed) wake('Night falls in about a minute. Go home to your village bed and sleep there (village sleep). Fighting creepers at night in the open is not a plan.');
+                else wake('Night falls in about a minute. Go to your shelter, or build one now with buildShelter, or dig in; put torches around it. Do not stay in the open. If you have a bed at your base, sleep in it (goToBed): that also sets your respawn point there.');
             }
         }
     },

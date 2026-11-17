@@ -1,7 +1,7 @@
 import * as mc from "../../utils/mcdata.js";
 import * as world from "./world.js";
 import { collectBlocks } from './mining.js';
-import { breakRefusal, harvestRefusal, protectedAreaAt } from './protection.js';
+import { breakRefusal, harvestRefusal, protectedAreaAt, isOwnBlock } from './protection.js';
 import { assertActionOwner, actionContext, onActionCleanup, cancellable } from '../action_context.js';
 import pf from 'mineflayer-pathfinder';
 import Vec3 from 'vec3';
@@ -443,6 +443,11 @@ export async function attackEntity(bot, entity, kill=true) {
      * await skills.attackEntity(bot, entity);
      **/
 
+    // villagers, golems and traders are never attacked (Lars, 17.11.: he lives in a village now)
+    if (/^(villager|iron_golem|snow_golem|wandering_trader|trader_llama)$/.test(entity.name || '')) {
+        log(bot, `Not attacking ${entity.name}: villagers and golems are your neighbours.`);
+        return false;
+    }
     if (!mc.isHostile(entity) && entity.type !== 'player') {
         const area = protectedAreaAt(bot, entity.position);
         if (area) { log(bot, `Not attacking ${entity.name}: it is inside the protected area "${area.name || 'player base'}" (players' animals).`); return false; }
@@ -1044,9 +1049,11 @@ export async function takeFromChest(bot, itemName, num=-1) {
      * @example
      * await skills.takeFromChest(bot, "oak_log");
      * **/
-    let chest = world.getNearestBlock(bot, 'chest', 32);
+    // foreign chests inside protected areas (village, player bases) are not ours to take from
+    const chests = world.getNearestBlocks(bot, 'chest', 32, 16);
+    let chest = chests.find(c => isOwnBlock(bot, c.position, c.name) || !protectedAreaAt(bot, c.position));
     if (!chest) {
-        log(bot, `Could not find a chest nearby.`);
+        log(bot, chests.length ? `The chests nearby belong to others (protected area): do not take from them.` : `Could not find a chest nearby.`);
         return false;
     }
     await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);

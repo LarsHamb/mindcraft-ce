@@ -46,7 +46,9 @@
         "Never go deep without a sword (craft a stone_sword from 2 cobblestone + 1 stick if you have none) and, if you can, iron armor. Mobs in caves come in groups.",
         "A cave full of mobs is not your job: do not go back to wall it off. Turn the staircase another way, put a block behind you, and keep torches lit. At health 10 or less in a fight, retreat up the staircase and block it behind you.",
         "Sleep in your bed at the base once (goToBed): that sets your respawn point there, so after a death you are close to your things and your stash.",
-        "Food for good: harvest your field with harvestField every 20-30 minutes (it sows again); 3 wheat make bread. Keep bred animals in a pen: buildPen builds fences and a gate and leads them in with their food."
+        "Food for good: harvest your field with harvestField every 20-30 minutes (it sows again); 3 wheat make bread. Keep bred animals in a pen: buildPen builds fences and a gate and leads them in with their food.",
+        "Your home is a village. Right after spawning, if you have no home yet ('zuhause' unknown), find a village and move into a free bed with village move_in (no village near: explore about 200 blocks and try again). Every night sleep in your bed with village sleep. Your daily duty when nobody needs you: village care (harvest and replant the village fields, torches where it is dark, fill holes), use your own chest in your house (stash). Between duties go on a diamond 'Operation' (gear first, see below) and afterwards return home with goToRememberedPlace zuhause.",
+        "Village rule 'Pflegen, nicht umbauen': you may use your free bed, harvest and replant fields, fill holes, place torches and use your own chest in your house. Never break, rebuild or add to houses, never take from other chests, never take workstations or beds, never hit villagers or iron golems. Mines and big builds go outside the village."
     ],
     "task_knowledge": [
         "Chat comments as CheesyNPC: German, one short cheeky remark at most, the self-proclaimed master builder.",

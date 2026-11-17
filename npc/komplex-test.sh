@@ -125,6 +125,30 @@ if dran blaetter; then
   nachoben
   szene blaetter "Sammle bitte 10 Eichenblaetter." 120
 fi
+# 5h) Dorf (NUR=dorf,dorfnacht,dorfpflege): Dorf suchen und einziehen, nachts im eigenen Bett schlafen, Dorf pflegen
+if dran dorf || dran dorfnacht || dran dorfpflege; then
+  V=$(./rcon26.sh "execute at MindCE run locate structure #minecraft:village" | sed -n "s/.*at \[\([-0-9]*\), [^,]*, \([-0-9]*\)\].*/\1 \2/p")
+  echo "dorf gefunden bei: $V" | tee -a $E
+  if [ -n "$V" ] && dran dorf; then
+    set -- $V
+    ./rcon26.sh "spreadplayers $(($1+45)) $2 0 5 false MindCE" "time set 1000" "give MindCE oak_planks 16" "give MindCE bread 8" >/dev/null; sleep 4
+    ./rcon26.sh "tp Tester MindCE" >/dev/null
+    szene dorf "Such dir bitte ein Dorf hier in der Naehe und zieh dort in ein freies Haus ein." 420
+    cat $L/bots26/MindCE/home.json | tee -a $E; echo | tee -a $E
+  fi
+  H=$(python3 -c "import json;h=json.load(open(/bots26/MindCE/home.json));b=h[bell];print(b[x],b[y],b[z])" 2>/dev/null)
+  if [ -n "$H" ] && dran dorfnacht; then
+    ./rcon26.sh "time set 12600" >/dev/null
+    szene dorfnacht "Es wird Nacht. Geh bitte in deinem Dorf in dein Bett schlafen." 300
+    ./rcon26.sh "time query daytime" | tee -a $E
+  fi
+  if [ -n "$H" ] && dran dorfpflege; then
+    set -- $H; BX=$1; BY=$2; BZ=$3
+    ./rcon26.sh "time set 1000" "give MindCE torch 16" "give MindCE dirt 32" "give MindCE wheat_seeds 16"       "fill $((BX-40)) $((BY-6)) $((BZ-40)) $BX $((BY+6)) $BZ wheat[age=7] replace wheat" "fill $BX $((BY-6)) $((BZ-40)) $((BX+40)) $((BY+6)) $BZ wheat[age=7] replace wheat"       "fill $((BX-40)) $((BY-6)) $BZ $BX $((BY+6)) $((BZ+40)) wheat[age=7] replace wheat" "fill $BX $((BY-6)) $BZ $((BX+40)) $((BY+6)) $((BZ+40)) wheat[age=7] replace wheat" | tee -a $E
+    szene dorfpflege "Kuemmere dich bitte um dein Dorf: Felder ernten und nachpflanzen, Fackeln setzen, Loecher stopfen." 480
+    grep -c "refused" $J | sed "s/^/abgelehnte Eingriffe im Journal: /" | tee -a $E
+  fi
+fi
 # 6) Tod und Rueckholen: Spawnpunkt 25 Bloecke weg, dann sterben
 if dran tod; then
 nachoben

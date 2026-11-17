@@ -14,10 +14,11 @@ import BreedAnimals from './tools/breedAnimals.js';
 import Stash from './tools/stash.js';
 import HarvestField from './tools/harvestField.js';
 import BuildPen from './tools/buildPen.js';
+import Village from './tools/village.js';
 import { getAugmentRegistry } from '../agents/code.js';
 
 const extras = [new PlaceBlockAt(), new PlaceBlocks(), new BuildShelter(), new DigStairs(), new ExecuteCode(), new GenerateAugment(), new SearchSkills(),
-    new MakeField(), new BreedAnimals(), new Stash(), new HarvestField(), new BuildPen()];
+    new MakeField(), new BreedAnimals(), new Stash(), new HarvestField(), new BuildPen(), new Village()];
 const codeTools = new Set(['newAction', 'executeCode', 'generateAugment']);
 const unblockable = new Set(['stop', 'stats', 'inventory', 'goal']);
 const types = { int: 'integer', float: 'number', BlockName: 'string', ItemName: 'string', BlockOrItemName: 'string' };

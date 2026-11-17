@@ -55,8 +55,9 @@ function state(bot) {
     const built = loadJson(`${dir}/built_areas.json`, []);
     const players = loadJson(`${dir}/player_areas.json`, []);
     const restore = loadJson(`${dir}/restore.json`, []);
+    const home = loadJson(`${dir}/home.json`, null);
     s = {
-        own, built, players, restore, dir,
+        own, built, players, restore, dir, home,
         saveRestore() { saveJson(`${dir}/restore.json`, s.restore); },
         savePlayers() { saveJson(`${dir}/player_areas.json`, s.players); },
         saveOwn() { while (own.size > MAX_OWN) own.delete(own.keys().next().value); saveJson(`${dir}/own_blocks.json`, Object.fromEntries(own)); },
@@ -90,6 +91,58 @@ export function protectedAreaAt(bot, pos) {
 }
 
 export const isOwnBlock = (bot, pos, name) => state(bot).own.get(key(pos)) === name;
+
+// ---- Home village (Lars, 17.11.: "Pflegen, nicht umbauen") ----
+// The bot may live in a free bed of a village. There it may do care work although the village is protected:
+// torches on the ground, seeds on farmland, filling holes in the ground and one chest of its own in its house.
+// Houses, workstations, beds, other chests and villagers stay untouched (BUILDING refusals and areas still apply).
+export const VILLAGE_RADIUS = 48;
+const HOUSE_RADIUS = 6;
+export const SEEDS = /^(wheat_seeds|carrot|potato|beetroot_seeds)$/;
+export const FILL = /^(dirt|coarse_dirt|cobblestone|cobbled_deepslate|stone|andesite|diorite|granite|tuff|sand|gravel)$/;
+const NATURAL_GROUND = /^(grass_block|dirt|coarse_dirt|podzol|rooted_dirt|mycelium|stone|cobblestone|andesite|diorite|granite|tuff|deepslate|cobbled_deepslate|sand|red_sandstone|sandstone|gravel|clay|mud|moss_block|snow_block|terracotta|dirt_path|farmland)$/;
+
+export const getHome = bot => state(bot).home;
+export function setHome(bot, home) {
+    const s = state(bot);
+    s.home = home ? {...home, at: Date.now()} : null;
+    saveJson(`${s.dir}/home.json`, s.home);
+    return s.home;
+}
+export function inHomeVillage(bot, pos) {
+    const h = state(bot).home;
+    if (!h?.bell || !pos) return false;
+    const r = h.radius || VILLAGE_RADIUS;
+    return (pos.x - h.bell.x) ** 2 + (pos.z - h.bell.z) ** 2 <= r * r && Math.abs(pos.y - h.bell.y) <= 24;
+}
+export function inHomeHouse(bot, pos) {
+    const b = state(bot).home?.bed;
+    return !!b && !!pos && Math.abs(pos.x - b.x) <= HOUSE_RADIUS && Math.abs(pos.z - b.z) <= HOUSE_RADIUS && Math.abs(pos.y - b.y) <= 2;
+}
+const solidNatural = b => !!b && b.boundingBox === 'block' && NATURAL_GROUND.test(b.name);
+
+/** A hole in the ground: open to the sky, natural ground below and on at least 3 sides. */
+export function isGroundHole(bot, p) {
+    const at = bot.blockAt(p);
+    if (!at || !/^(air|cave_air|short_grass|tall_grass|fern)$/.test(at.name)) return false;
+    if (!solidNatural(bot.blockAt(p.offset(0, -1, 0)))) return false;
+    const sides = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dz]) => bot.blockAt(p.offset(dx, 0, dz)));
+    if (sides.some(b => b && BUILDING.test(b.name))) return false;
+    if (sides.filter(solidNatural).length < 3) return false;
+    for (let dy = 1; dy <= 4; dy++) { const up = bot.blockAt(p.offset(0, dy, 0)); if (up && up.boundingBox === 'block') return false; }
+    return true;
+}
+
+/** Care work allowed in the home village although it is protected. Returns a reason string or null. */
+export function villageCare(bot, target, heldName) {
+    if (!target || !heldName || !inHomeVillage(bot, target)) return null;
+    const below = bot.blockAt(target.offset(0, -1, 0));
+    if (/^(torch|lantern)$/.test(heldName) && below && below.boundingBox === 'block' && !/_leaves$|farmland/.test(below.name)) return 'torch';
+    if (SEEDS.test(heldName) && below?.name === 'farmland') return 'sowing';
+    if (FILL.test(heldName) && isGroundHole(bot, target)) return 'hole';
+    if (heldName === 'chest' && inHomeHouse(bot, target)) return 'own chest';
+    return null;
+}
 
 // Returns null if the bot may break this block, otherwise the reason.
 export function breakRefusal(bot, block) {
@@ -365,7 +418,8 @@ export function installProtection(bot) {
             const area = protectedAreaAt(bot, target);
             // putting back what it broke there is allowed (restore list); anything else is refused
             const restoring = target && restoreAt(bot, target);
-            if (area && !restoring) throw refusal('Placing a block', target, `protected area "${area.name || 'player base'}"`);
+            const care = area && !restoring && villageCare(bot, target, bot.heldItem?.name);
+            if (area && !restoring && !care) throw refusal('Placing a block', target, `protected area "${area.name || 'player base'}"`);
             // a solid block on top of a chest keeps it shut (Boys test 17.11.)
             const below = target && bot.blockAt(target.offset(0, -1, 0));
             const held = bot.heldItem && bot.registry?.blocksByName?.[bot.heldItem.name];
