@@ -2191,15 +2191,20 @@ export async function goToSurface(bot) {
      * @param {MinecraftBot} bot, reference to the minecraft bot.
      * @returns {Promise<boolean>} true if the surface was reached, false otherwise.
      **/
+    // Boys 17.11.: in a closed hole the exact column top (often leaves) was hard to plan and 1x1 towering kept
+    // failing. Aim for the surface height anywhere (GoalY): with towering off the pathfinder digs a staircase up
+    // (test: 17 blocks in 39 s), and give it time to plan the longer way.
     const pos = bot.entity.position;
-    for (let y = 360; y > -64; y--) { // probably not the best way to find the surface but it works
+    for (let y = 360; y > -64; y--) {
         const block = bot.blockAt(new Vec3(pos.x, y, pos.z));
-        if (!block || block.name === 'air' || block.name === 'cave_air') {
-            continue;
-        }
-        await goToPosition(bot, block.position.x, block.position.y + 1, block.position.z, 0); // this will probably work most of the time but a custom mining and towering up implementation could be added if needed
-        log(bot, `Going to the surface at y=${y+1}.`);``
-        return true;
+        if (!block || block.name === 'air' || block.name === 'cave_air' || /_leaves$|_log$/.test(block.name)) continue;
+        if (y + 1 <= Math.floor(pos.y) + 1 && (bot.blockAt(pos.offset(0, 2, 0))?.skyLight ?? 0) > 0) { log(bot, 'Already at the surface.'); return true; }
+        log(bot, `Going to the surface at y=${y+1}.`);
+        const think = bot.pathfinder.thinkTimeout;
+        bot.pathfinder.thinkTimeout = Math.max(think || 0, 20000);
+        try { await goToGoal(bot, new pf.goals.GoalY(y + 1)); }
+        finally { bot.pathfinder.thinkTimeout = think; }
+        return Math.floor(bot.entity.position.y) >= y;
     }
     return false;
 }

@@ -314,6 +314,8 @@ function guardMovements(bot, movements) {
     movements.exclusionAreasStep?.push(block => dangerStepCost(bot, block));
     // no planned drops that hurt (it died from "hit the ground too hard" once)
     if (typeof movements.maxDropDown === 'number') movements.maxDropDown = Math.min(movements.maxDropDown, 3);
+    // Boys 17.11.: 1x1 towering on 26.3 failed in shafts (endless jumping, "standing on air"); dig stairs up instead
+    movements.allow1by1towers = false;
     movements.__protected = true;
     return movements;
 }
