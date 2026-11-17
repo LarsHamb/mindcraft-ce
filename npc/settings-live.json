@@ -49,7 +49,7 @@
  "npc_language": "de",
  "pause_without_players": true,
  "ignore_players": [],
- "idle_wake_seconds": 180,
+ "idle_wake_seconds": 120,
  "tool_narration_max_silence_seconds": 90,
  "load_memory": true,
  "task_default_tools": [

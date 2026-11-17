@@ -108,9 +108,26 @@ export async function craftRecipe(bot, itemName, num=1) {
     const requiredIngredients = mc.ingredientsFromPrismarineRecipe(recipe); //Items required to use the recipe once.
     const craftLimit = mc.calculateLimitingResource(inventory, requiredIngredients);
     
+    const before = inventory[itemName] || 0;
     await bot.craft(recipe, Math.min(craftLimit.num, num), craftingTable);
-    if(craftLimit.num<num) log(bot, `Not enough ${craftLimit.limitingResource} to craft ${num}, crafted ${craftLimit.num}. You now have ${world.getInventoryCounts(bot)[itemName]} ${itemName}.`);
-    else log(bot, `Successfully crafted ${itemName}, you now have ${world.getInventoryCounts(bot)[itemName]} ${itemName}.`);
+    // 26.3: the result sometimes does not arrive in the inventory ("you now have undefined") and lands on the
+    // ground; it then crafted three crafting tables in a row. Wait for it, pick up drops, else report honestly.
+    let now = world.getInventoryCounts(bot)[itemName] || 0;
+    for (let i = 0; i < 20 && now <= before; i++) {
+        await new Promise(r => setTimeout(r, 100));
+        now = world.getInventoryCounts(bot)[itemName] || 0;
+    }
+    if (now <= before) {
+        await pickupNearbyItems(bot).catch(() => {});
+        now = world.getInventoryCounts(bot)[itemName] || 0;
+    }
+    if (now <= before) {
+        log(bot, `Crafting ${itemName} did not put it into the inventory (still ${now}). Check the inventory and nearby drops before crafting it again.`);
+        if (placedTable) await collectBlock(bot, 'crafting_table', 1);
+        return false;
+    }
+    if(craftLimit.num<num) log(bot, `Not enough ${craftLimit.limitingResource} to craft ${num}, crafted ${craftLimit.num}. You now have ${now} ${itemName}.`);
+    else log(bot, `Successfully crafted ${itemName}, you now have ${now} ${itemName}.`);
     if (placedTable) {
         await collectBlock(bot, 'crafting_table', 1);
     }
@@ -1013,6 +1030,11 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
         log(bot, `You cannot give items to yourself.`);
         return false;
     }
+    // offline players are not in bot.players at all (crashed with "reading 'entity'" once)
+    if (!bot.players[username]) {
+        log(bot, `${username} is not online. Keep the items (or put them in a chest) and continue your own plan.`);
+        return false;
+    }
     let player = bot.players[username].entity
     if (!player) {
         log(bot, `Could not find ${username}.`);
@@ -1325,6 +1347,11 @@ export async function goToPlayer(bot, username, distance=3) {
 
     bot.modes.pause('self_defense');
     bot.modes.pause('cowardice');
+    // offline players are not in bot.players at all (crashed with "reading 'entity'" once)
+    if (!bot.players[username]) {
+        log(bot, `${username} is not online. Keep the items (or put them in a chest) and continue your own plan.`);
+        return false;
+    }
     let player = bot.players[username].entity
     if (!player) {
         log(bot, `Could not find ${username}.`);
@@ -1350,6 +1377,11 @@ export async function followPlayer(bot, username, distance=4) {
      * @example
      * await skills.followPlayer(bot, "player");
      **/
+    // offline players are not in bot.players at all (crashed with "reading 'entity'" once)
+    if (!bot.players[username]) {
+        log(bot, `${username} is not online. Keep the items (or put them in a chest) and continue your own plan.`);
+        return false;
+    }
     let player = bot.players[username].entity
     if (!player)
         return false;

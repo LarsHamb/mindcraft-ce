@@ -100,7 +100,8 @@ class BuildShelterTool extends BaseTool {
                 const b = at(q);
                 if (b && b.name !== 'air' && b.name !== 'cave_air' && b.name !== 'water') { await skills.breakBlockAt(bot, q.x, q.y, q.z); bot.emit('mining_progress', {message: 'Clearing the shelter floor.'}); }
             }
-            let placed = 0, failed = 0;
+            // no new block for 45 s: stop and report the holes (it tried for 3.5 min on a slope once)
+            let placed = 0, failed = 0, lastProgress = Date.now();
             for (const q of [...plan.walls, ...plan.roof]) {
                 if (bot.interrupt_code) break;
                 if (isSolidName(at(q)?.name)) continue;
@@ -110,7 +111,9 @@ class BuildShelterTool extends BaseTool {
                 if (ok) placed++; else failed++;
                 // tell the stuck watchdog we are working although we barely move
                 bot.emit('mining_progress', {message: `Building shelter: ${placed} blocks placed.`});
+                if (ok) lastProgress = Date.now();
                 if (failed >= 12 && placed === 0) break;
+                if (Date.now() - lastProgress > 45000) break;
             }
             // door if we have one
             const door = bot.inventory.items().find(i => i.name.endsWith('_door'));

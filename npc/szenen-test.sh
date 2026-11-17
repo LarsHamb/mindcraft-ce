@@ -17,13 +17,18 @@ import json, sys, time
 j, t0, limit = sys.argv[1], int(sys.argv[2]) * 1000, int(sys.argv[3])
 end = time.time() + limit
 while time.time() < end:
+    started = False
     try:
         for l in open(j):
             e = json.loads(l)
-            if e.get("at", 0) >= t0 and e["type"] == "task_end" and e.get("forPlayer"):
+            if e.get("at", 0) < t0: continue
+            if e["type"] == "task_start" and e.get("forPlayer"): started = True
+            if e["type"] == "task_end" and e.get("forPlayer"):
                 print(f"{e.get('outcome')}: {e.get('reason', '')[:100]}"); sys.exit()
     except OSError:
         pass
+    if not started and time.time() - t0 / 1000 > 60:
+        print("keine Aufgabe angelegt (direkt beantwortet)"); sys.exit()
     time.sleep(5)
 print("ZEITLIMIT")
 EOF
@@ -37,6 +42,10 @@ szene() { # $1 Name, $2 Auftrag, $3 Limit
 }
 
 : > $L/szenen-ergebnis.txt
+# Tester stays online the whole time (orders come from him)
+docker rm -f tester >/dev/null 2>&1
+docker run -d --name tester --network karimnet -v $L/tester.cjs:/app/tester.cjs:ro -e MSGS="hallo" -e STAY=1 mindcraft-ce26 node /app/tester.cjs >/dev/null
+sleep 6; ./rcon26.sh "tp Tester MindCE" >/dev/null
 szene holz "Hol mir bitte 8 Holzstaemme." 180
 szene stein "Hol mir bitte 16 Bruchstein." 180
 P=$(./rcon26.sh "data get entity MindCE Pos"); PX=$(echo $P | sed "s/.*\[\([-0-9]*\)\..*/\1/"); PY=$(echo $P | sed "s/.*, \([-0-9]*\)\.[0-9]*d, .*/\1/"); PZ=$(echo $P | sed "s/.*, \([-0-9]*\)\.[0-9]*d\]/\1/")
@@ -46,6 +55,7 @@ szene huette "Bau dir hier bitte eine kleine Huette." 180
 ( sleep 40; ./rcon26.sh "execute at MindCE run summon minecraft:creeper ~7 ~ ~" >/dev/null ) &
 szene essen "Besorg dir bitte 4 Stueck Essen." 240
 docker stop mindcraft-ce26-bot >/dev/null
+docker rm -f tester >/dev/null 2>&1
 ./rcon26.sh "kill @e[type=creeper]" >/dev/null
 echo "--- Bericht ---"
 MIN=$(( ($(date +%s) - T0) / 60 + 1 ))
