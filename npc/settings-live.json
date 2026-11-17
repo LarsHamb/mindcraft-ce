@@ -86,5 +86,6 @@
  ],
  "summary_chunk_size": 14,
  "max_messages": 20,
- "brain_check_in_seconds": 120
+ "brain_check_in_seconds": 120,
+ "gemini_explicit_cache": true
 }
