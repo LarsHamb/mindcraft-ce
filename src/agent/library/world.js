@@ -427,5 +427,5 @@ export function getBiomeName(bot) {
      * let biome = world.getBiomeName(bot);
      **/
     const biomeId = bot.world.getBiome(bot.entity.position);
-    return mc.getAllBiomes()[biomeId].name;
+    return mc.getAllBiomes()[biomeId]?.name ?? bot.registry?.biomes?.[biomeId]?.name ?? "unknown";
 }
