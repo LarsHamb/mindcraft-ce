@@ -10,7 +10,7 @@ F=$DIR/$BOT/character.json
 LAST=$DIR/$BOT/.nick-gesetzt
 while :; do
   if [ -f "$F" ]; then
-    D=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('display',''))" "$F" 2>/dev/null)
+    D=$(python3 -c "import json,sys;print(' '.join(str(json.load(open(sys.argv[1])).get('display','')).split())[:80])" "$F" 2>/dev/null)
     if [ -n "$D" ] && [ "$D" != "$(cat "$LAST" 2>/dev/null)" ]; then
       if [ -n "$DRY" ]; then echo "wuerde setzen: styled-nicknames set $BOT $D"
       else tmux -L mc send-keys -t mc "styled-nicknames set $BOT $D" Enter && echo "$(date +%H:%M) $BOT: $D"; fi
