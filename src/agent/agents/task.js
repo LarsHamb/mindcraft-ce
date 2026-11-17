@@ -6,7 +6,7 @@ import { asToolResult, toolResult, toolResultText } from '../tool_result.js';
 import { ToolNarrator } from '../narration.js';
 import { parseObject, chatText, functionTool, validateArguments } from './structured.js';
 import { playerNarration, problemMessage } from '../user_messages.js';
-import { restoreBetweenTools } from '../modes.js';
+import { restoreBetweenTools, grabValuables } from '../modes.js';
 
 // Boys test 17.11.: it called craftRecipe stick without planks 26 times in an hour. The same call that
 // failed twice with the same inventory is not run a third time; the model gets a clear hint instead.
@@ -175,6 +175,8 @@ export class TaskAgent {
                         journal('tool',{tool:call.name,status:result?.status,text:String(result?.text||'').slice(0,160)},this.agent.bot);}
                     // put back nearby blocks it broke (protected areas, surface holes, saplings) without a model request
                     if(!control&&!this.cancelJob) await restoreBetweenTools(this.agent).catch(error=>console.warn('restore:',error.message));
+                    // valuable ore in sight (diamonds) is always taken along, without a model request
+                    if(!control&&!this.cancelJob) await grabValuables(this.agent).catch(error=>console.warn('valuables:',error.message));
                     if(!control) await narrator.afterTool(result,call);
                     if(handoff) break;
                 }

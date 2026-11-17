@@ -13,7 +13,7 @@ cp $L/bots26/MindCE/own_blocks.json $L/stunde-own-vorher.json 2>/dev/null || ech
 # warten, bis MindCE wirklich im Spiel ist (der Start dauert unterschiedlich lange)
 for t in $(seq 1 30); do ./rcon26.sh list 2>/dev/null | grep -q MindCE && break; sleep 4; done
 sleep 5
-START=$(./rcon26.sh "clear MindCE" "spreadplayers $X $Z 0 8 false MindCE" "time set 0" "weather clear" 2>&1)
+START=$(./rcon26.sh "clear MindCE" "spreadplayers $X $Z 0 150 false MindCE" "time set 0" "weather clear" 2>&1)
 echo "$START" > $L/stunde-start.txt
 echo "$START" | grep -q "Spread 1" || { echo "ABBRUCH: Teleport nach $X $Z hat nicht geklappt: $START"; docker stop mindcraft-ce26-bot; exit 1; }
 sleep 3

@@ -15,6 +15,13 @@ export function blockTypes(type) {
     return types;
 }
 
+// Diamonds sit deep, often beside lava: an ore with lava above or beside it would flood the bot when mined.
+export function nextToLava(bot, block) {
+    if (typeof bot?.blockAt !== 'function' || !block?.position) return false;
+    return [[0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]]
+        .some(([x, y, z]) => /lava/.test(bot.blockAt(block.position.offset(x, y, z))?.name || ''));
+}
+
 // Silent multi-minute loops are worse than an honest blocker: stop after this many failed
 // targets in a row, or after this long without a new block.
 export const MAX_FAILS_IN_ROW = 3;
@@ -58,7 +65,8 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
         if (now() - lastProgress > MAX_NO_PROGRESS_MS) { blocker = `No new ${type} for ${Math.round((now() - lastProgress) / 1000)} s: ${blocker || 'no progress'}${where()}`; break; }
         const blocks = find(block => types.has(block.name) && (!block.position || (!excluded.has(block.position.toString()) &&
             !failed.has(block.position.toString()))) && (type !== 'water' && type !== 'lava' || block.metadata === 0))
-            .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()));
+            .filter(block => block.position && !excluded.has(block.position.toString()) && !failed.has(block.position.toString()))
+            .filter(block => type === 'lava' || !nextToLava(bot, block));
         const target = blocks[0];
         if (!target) { blocker ||= `No reachable ${type} found nearby.`; break; }
         const key = target.position.toString();

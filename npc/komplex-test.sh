@@ -65,6 +65,34 @@ szene kuehe "Zuechte bitte die zwei Kuehe hier, damit wir Nachwuchs haben." 240
 # 5) Lager: etwas Ueberschuss geben, dann Lager anlegen lassen
 dran lager && ./rcon26.sh "give MindCE bread 12" "give MindCE stone_pickaxe 1" "give MindCE oak_planks 8" >/dev/null
 szene lager "Leg dir bitte ein Lager in einer Kiste an, mit Essen und Werkzeug fuer den Notfall." 240
+# 5a) Huette (NUR=huette): mit Holz, ohne Hilfe
+if dran huette; then
+  nachoben
+  ./rcon26.sh "give MindCE oak_planks 64" >/dev/null
+  szene huette "Bau dir hier bitte eine kleine Huette." 300
+fi
+# 5b) Ruestung und Diamanten (NUR=ruestung,diamant)
+if dran ruestung; then
+  nachoben
+  ./rcon26.sh "give MindCE iron_ingot 24" >/dev/null
+  szene ruestung "Mach dir bitte eine komplette Eisenruestung und zieh sie an." 300
+fi
+if dran diamant; then
+  nachoben
+  ./rcon26.sh "give MindCE iron_pickaxe 1" "give MindCE cooked_beef 16" "give MindCE torch 32" "give MindCE cobblestone 64" >/dev/null
+  szene diamant "Hol mir bitte 3 Diamanten, aber pass auf dich auf." 1500
+  ./rcon26.sh "data get entity MindCE Pos" | tee -a $E
+fi
+# 5c) Wertvolles mitnehmen (NUR=wertvoll): Raum auf y -58 mit 3 Diamanterzen, Auftrag nur fuer einen
+if dran wertvoll; then
+  nachoben
+  set -- $(pos); PX=$1; PZ=$3
+  ./rcon26.sh "clear MindCE" "fill $((PX-3)) -60 $((PZ-3)) $((PX+3)) -55 $((PZ+3)) deepslate" "fill $((PX-2)) -59 $((PZ-2)) $((PX+2)) -57 $((PZ+2)) air"     "setblock $((PX+3)) -58 $PZ deepslate_diamond_ore" "setblock $((PX-3)) -58 $PZ deepslate_diamond_ore" "setblock $PX -58 $((PZ+3)) deepslate_diamond_ore"     >/dev/null
+  ./rcon26.sh "tp MindCE $PX -59 $PZ" "give MindCE iron_pickaxe 1" "give MindCE cooked_beef 8" >/dev/null; sleep 4
+  szene wertvoll "Bau bitte einen Diamanten hier ab und behalte ihn." 180
+  sleep 20
+  ./rcon26.sh "clear MindCE minecraft:diamond 0" | tee -a $E
+fi
 # 6) Tod und Rueckholen: Spawnpunkt 25 Bloecke weg, dann sterben
 if dran tod; then
 nachoben

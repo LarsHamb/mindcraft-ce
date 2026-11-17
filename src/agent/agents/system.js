@@ -170,7 +170,12 @@ export class AgentSystem {
         }
         // Validate selected endpoints before handing the task off.
         this.agent.prompter.selectTaskModel?.(args.model||this.agent.prompter.model_selection?.default_task_model);
-        const directive={id:randomUUID(),forPlayer:!!this.playerRequest,objective:args.objective,briefing:args.briefing||'',constraints:args.constraints||'',
+        // Boys test 17.11.: "3 Diamanten" was interrupted and Brain finished it with own follow-up tasks, which no
+        // longer counted for the player. An open player request stays attributed for 20 minutes.
+        if(this.playerRequest&&!['system','ADMIN',this.agent.name].includes(source)) this.openPlayer={name:source,at:this.now()};
+        const carried=!this.playerRequest&&this.openPlayer&&this.now()-this.openPlayer.at<20*60000?this.openPlayer:null;
+        if(carried) carried.at=this.now();
+        const directive={id:randomUUID(),forPlayer:!!this.playerRequest||!!carried,player:this.playerRequest?source:carried?.name,objective:args.objective,briefing:args.briefing||'',constraints:args.constraints||'',
             tools:args.tools,model:args.model||(this.agent.prompter.model_selection?.enabled?this.agent.prompter.model_selection.default_task_model:undefined),source,startedAt:this.now()};
         this.currentDirective=directive;this.lastCheck=this.now();
         journal('task_start',{objective:directive.objective,source,forPlayer:directive.forPlayer},this.agent.bot);
@@ -183,7 +188,8 @@ export class AgentSystem {
                 journal('task_end',{objective:directive.objective,source,forPlayer:directive.forPlayer,outcome:this.lastDirective.outcome,reason:String(result.chat_response||result.summary||'').slice(0,160)},this.agent.bot);
                 this.currentDirective=null;this.brain.recordTaskOutcome(result);
                 // what it did for whom (player memory); only for real players, not for its own plans
-                if(result.work_done&&directive.forPlayer&&source&&!['system','ADMIN',this.agent.name].includes(source)) rememberPlayer(this.agent.name,source,`did for them: ${directive.objective}`,'done');
+                if(result.work_done&&directive.forPlayer&&directive.player&&!['system','ADMIN',this.agent.name].includes(directive.player)) rememberPlayer(this.agent.name,directive.player,`did for them: ${directive.objective}`,'done');
+                if(directive.forPlayer&&(result.work_done||result.blocked)) this.openPlayer=null;
                 if(this.agent.decisions?.enabled&&result.work_done) {
                     const goals=this.brain.goals.active().filter(g=>!g.target);
                     const completed=await this.agent.decisions.checkGoals(goals,{results:this.task.lastResults,inventory:this.fingerprint()});

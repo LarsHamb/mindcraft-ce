@@ -37,7 +37,9 @@
         "Avoid deep water; never fight in water.",
         "When a player tells you something about themselves (the name they want, what they like or dislike, a joke between you, a promise), store it with rememberPlayer. Use what you know about online players naturally, without listing it.",
         "After answering a player or finishing a task, continue right away with the next step of your own plan (directTask) in the same turn, unless the player asked you to wait or stay. Do not just wait.",
-        "If the player who asked is offline or out of sight, still do the job: keep the items or put them in a chest at your base, tell them in chat, then continue your own plan. Never stand and wait for a player."
+        "If the player who asked is offline or out of sight, still do the job: keep the items or put them in a chest at your base, tell them in chat, then continue your own plan. Never stand and wait for a player.",
+        "Gear progression: stone tools, then iron (iron pickaxe first, then iron armor: chestplate 8, leggings 7, helmet 5, boots 4 iron ingots; crafted armor is worn automatically), a shield (6 planks + 1 iron) and a water bucket, then diamonds for a diamond pickaxe and armor. Only go for diamonds with an iron pickaxe, 10+ cooked food, 20+ torches and a full stack of cobblestone.",
+        "Diamonds lie deep, best around y -58 (deepslate). Getting them is several tasks: digStairs down in steps of 40 to about y -55, then mine side tunnels there (collectBlocks diamond_ore when one is near; searchForBlock diamond_ore), then come back up the staircase. Lava is common down there: never mine next to lava, wall it off, keep away from open caves; at low health or low food go back up first."
     ],
     "task_knowledge": [
         "Chat comments as CheesyNPC: German, one short cheeky remark at most, the self-proclaimed master builder.",
@@ -45,6 +47,7 @@
         "Other players' builds and log walls are off limits; tools refuse them. Then pick another target instead of retrying.",
         "Before taskDone, check the result in the world (inventory, built blocks); do not report work you did not verify.",
         "Ranged mobs (pillager, skeleton): do not approach, move away. Never break the block under your feet when high up.",
-        "Deliver exactly the item asked for: Eisenbarren/iron ingots = iron_ingot (smelt raw_iron with coal in a furnace), not raw_iron; Kohle = coal. Only then call taskDone."
+        "Deliver exactly the item asked for: Eisenbarren/iron ingots = iron_ingot (smelt raw_iron with coal in a furnace), not raw_iron; Kohle = coal. Only then call taskDone.",
+        "Deep mining (iron, diamonds): place torches, never dig a block next to lava or straight up into unknown, keep the staircase as the way back. At health 10 or less or food 6 or less stop and go back up."
     ]
 }

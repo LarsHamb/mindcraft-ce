@@ -3,7 +3,8 @@ import * as world from './library/world.js';
 import * as mc from '../utils/mcdata.js';
 import settings from './settings.js'
 import convoManager from './conversation.js';
-import { protectedAreaAt, dueRestores, finishRestore } from './library/protection.js';
+import { protectedAreaAt, dueRestores, finishRestore, harvestRefusal } from './library/protection.js';
+import { nextToLava } from './library/mining.js';
 import Vec3 from 'vec3';
 import { journal } from './journal.js';
 import pf from 'mineflayer-pathfinder';
@@ -345,6 +346,20 @@ const modes_list = [
         }
     },
     {
+        name: 'grab_valuables',
+        description: 'Take visible diamond and emerald ore close by along, when idle.',
+        interrupts: [],
+        on: true,
+        active: false,
+        last: 0,
+        update: async function (agent) {
+            if (!agent.isIdle() || Date.now() - this.last < 5000) return;
+            this.last = Date.now();
+            this.active = true;
+            try { await grabValuables(agent); } finally { this.active = false; }
+        }
+    },
+    {
         name: 'restore_blocks',
         description: 'Put back blocks broken in protected areas or at the surface, and replant saplings, when idle.',
         interrupts: ['action:followPlayer'],
@@ -678,4 +693,42 @@ export function initModes(agent) {
     if (modes_json) {
         agent.bot.modes.loadJson(modes_json);
     }
+}
+
+// Lars, 17.11.: after getting the 4 diamonds he asked for he walked off past two more diamond ores. Valuable
+// ore he can see close by is always taken along: between tool calls and when idle, no model request.
+const VALUABLE = {diamond_ore: 'iron', deepslate_diamond_ore: 'iron', emerald_ore: 'iron', deepslate_emerald_ore: 'iron', ancient_debris: 'diamond'};
+const PICK_TIER = ['wooden', 'stone', 'iron', 'diamond', 'netherite'];
+function canMine(bot, need) {
+    const best = Math.max(-1, ...bot.inventory.items().filter(i => i.name.endsWith('_pickaxe'))
+        .map(i => PICK_TIER.indexOf(i.name.replace('_pickaxe', '').replace('golden', 'wooden'))));
+    return best >= PICK_TIER.indexOf(need);
+}
+export function visibleValuables(bot, radius = 6) {
+    if (!bot?.entity || typeof bot.findBlocks !== 'function') return [];
+    const ids = Object.keys(VALUABLE).map(n => bot.registry?.blocksByName?.[n]?.id).filter(Number.isFinite);
+    if (!ids.length) return [];
+    return bot.findBlocks({matching: ids, maxDistance: radius, count: 8}).map(p => bot.blockAt(p))
+        .filter(b => b && VALUABLE[b.name] && canMine(bot, VALUABLE[b.name]) && !nextToLava(bot, b) && !harvestRefusal(bot, b)
+            && (typeof bot.canSeeBlock !== 'function' || bot.canSeeBlock(b)));
+}
+export async function grabValuables(agent, {radius = 6} = {}) {
+    const bot = agent.bot;
+    if (!bot?.entity || bot.modes?.isOn && !bot.modes.isOn('grab_valuables')) return 0;
+    if (bot.health <= 8 || bot.food <= 6) return 0; // not when he should be heading home
+    const found = visibleValuables(bot, radius);
+    if (!found.length) return 0;
+    const byType = {};
+    for (const b of found) byType[b.name] = (byType[b.name] || 0) + 1;
+    let got = 0;
+    const result = await agent.actions.runAction('action:grabValuables', async () => {
+        for (const [name, n] of Object.entries(byType)) {
+            const type = name.replace('deepslate_', '').replace('_ore', '');
+            const before = bot.inventory.items().filter(i => i.name === type || i.name === name).reduce((s, i) => s + i.count, 0);
+            await skills.collectBlock(bot, name, n);
+            got += Math.max(0, bot.inventory.items().filter(i => i.name === type || i.name === name).reduce((s, i) => s + i.count, 0) - before);
+        }
+    }, {timeout: 2});
+    if (got) { journal('valuables', {got, types: Object.keys(byType)}, bot); console.log(`Took ${got} valuable item(s) along: ${Object.keys(byType).join(', ')}.`); }
+    return result?.success ? got : 0;
 }
