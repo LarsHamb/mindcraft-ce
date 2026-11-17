@@ -345,6 +345,12 @@ export function installProtection(bot) {
             // putting back what it broke there is allowed (restore list); anything else is refused
             const restoring = target && restoreAt(bot, target);
             if (area && !restoring) throw refusal('Placing a block', target, `protected area "${area.name || 'player base'}"`);
+            // a solid block on top of a chest keeps it shut (Boys test 17.11.)
+            const below = target && bot.blockAt(target.offset(0, -1, 0));
+            const held = bot.heldItem && bot.registry?.blocksByName?.[bot.heldItem.name];
+            if (below && /chest$/.test(below.name) && held && held.boundingBox === 'block' && !held.transparent &&
+                !/chest|glass|leaves|_slab$|_stairs$|barrel/.test(held.name))
+                throw refusal('Placing a block', target, `it would block the ${below.name} below from opening`);
             const result = await place.call(this, referenceBlock, faceVector, ...rest);
             if (target && !restoring) {
                 // the server update can arrive after the place call resolves: wait briefly for it

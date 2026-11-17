@@ -84,7 +84,9 @@ async function openStash(bot, agent) {
     if (!await skills.goToPosition(bot, s.pos.x, s.pos.y, s.pos.z, 2)) return {error: `Could not reach the stash at ${s.pos.x},${s.pos.y},${s.pos.z}.`};
     const block = bot.blockAt(s.pos);
     if (!block || !/chest|barrel/.test(block.name)) return {error: `The stash chest at ${s.pos.x},${s.pos.y},${s.pos.z} is gone.`, gone: true};
-    return {container: await bot.openContainer(block), pos: s.pos};
+    const container = await skills.openChest(bot, block);
+    if (!container) return {error: `The stash chest at ${s.pos.x},${s.pos.y},${s.pos.z} is blocked from above.`};
+    return {container, pos: s.pos};
 }
 
 /** Place a stash chest near the bot (not in a player's area), crafting one from planks if needed. */

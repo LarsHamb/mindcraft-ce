@@ -928,6 +928,28 @@ export async function discard(bot, itemName, num=-1) {
     return true;
 }
 
+// Boys test 17.11.: a block it had built on top of its chest kept the chest shut (8x "windowOpen did not fire").
+// A solid block above blocks a chest; glass, leaves, slabs, stairs and other chests do not.
+export function chestBlockedBy(bot, chest) {
+    const above = chest?.position && bot.blockAt(chest.position.offset(0, 1, 0));
+    if (!above || above.boundingBox !== 'block' || above.transparent) return null;
+    if (/chest|glass|leaves|_slab$|_stairs$|barrel/.test(above.name)) return null;
+    return above;
+}
+
+export async function openChest(bot, chest) {
+    const above = chestBlockedBy(bot, chest);
+    if (above) {
+        const why = breakRefusal(bot, above);
+        if (why) { log(bot, `The chest at ${chest.position} is blocked by ${above.name} on top (${why}); it cannot be opened.`); return null; }
+        bot.__noRestore = true;
+        try { await breakBlockAt(bot, above.position.x, above.position.y, above.position.z); } finally { bot.__noRestore = false; }
+        if (chestBlockedBy(bot, chest)) { log(bot, `Could not clear the ${above.name} on top of the chest; it cannot be opened.`); return null; }
+        log(bot, `Removed ${above.name} from on top of the chest so it opens.`);
+    }
+    return await bot.openContainer(chest);
+}
+
 export async function putInChest(bot, itemName, num=-1) {
     assertActionOwner(bot);
     /**
@@ -951,7 +973,8 @@ export async function putInChest(bot, itemName, num=-1) {
     }
     let to_put = num === -1 ? item.count : Math.min(num, item.count);
     await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
-    const chestContainer = await bot.openContainer(chest);
+    const chestContainer = await openChest(bot, chest);
+    if (!chestContainer) return false;
     await chestContainer.deposit(item.type, null, to_put);
     await chestContainer.close();
     log(bot, `Successfully put ${to_put} ${itemName} in the chest.`);
@@ -975,7 +998,8 @@ export async function takeFromChest(bot, itemName, num=-1) {
         return false;
     }
     await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
-    const chestContainer = await bot.openContainer(chest);
+    const chestContainer = await openChest(bot, chest);
+    if (!chestContainer) return false;
     
     // Find all matching items in the chest
     let matchingItems = chestContainer.containerItems().filter(item => item.name === itemName);
@@ -1020,7 +1044,8 @@ export async function viewChest(bot) {
         return false;
     }
     await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
-    const chestContainer = await bot.openContainer(chest);
+    const chestContainer = await openChest(bot, chest);
+    if (!chestContainer) return false;
     let items = chestContainer.containerItems();
     if (items.length === 0) {
         log(bot, `The chest is empty.`);
