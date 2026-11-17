@@ -37,5 +37,20 @@ new2 = """      if (inFlight.get(key) === 1) inFlight.delete(key)
 """
 assert s.count(old2) == 1, "place_block.js: cleanup not found"
 s = s.replace(old2, new2)
+old3 = """    if (!newBlock) return
+    if (newBlock.type === oldBlock.type) {
+"""
+new3 = """    if (!newBlock) return
+    if (newBlock.type === oldBlock.type) {
+      // Boys patch: 26.3 first re-sends the old block (towering: 39 false refusals in one test, endless jumping);
+      // the placed block follows a moment later
+      for (let i = 0; i < 10; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        const now = bot.blockAt(dest)
+        if (now && now.type !== oldBlock.type) return
+      }
+"""
+assert s.count(old3) == 1, "place_block.js: refusal check not found"
+s = s.replace(old3, new3)
 open(p, "w").write(s)
 print("place_block.js patched")
