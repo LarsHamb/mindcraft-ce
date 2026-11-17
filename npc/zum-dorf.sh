@@ -6,7 +6,10 @@
 # Der Bot muss online sein. Danach zieht er selbst ein (village move_in).
 NAME=${1:?Botname fehlt}
 RCON=${RCON:-/home/lars/mindcraft-ce-lauf/rcon26.sh}
-V=$($RCON "execute at $NAME run locate structure #minecraft:village" | sed -n 's/.*at \[\([-0-9]*\), [^,]*, \([-0-9]*\)\].*/\1 \2/p' | head -1)
+xz() { sed -n 's/.*at \[\([-0-9]*\), [^,]*, \([-0-9]*\)\].*/\1 \2/p' | head -1; }
+V=$($RCON "execute at $NAME run locate structure #minecraft:village" | xz)
+# Fallback: the nearest bell (meeting point), e.g. a village placed with /place has no structure entry
+[ -n "$V" ] || V=$($RCON "execute at $NAME run locate poi minecraft:meeting" | xz)
 [ -n "$V" ] || { echo "kein Dorf gefunden (ist $NAME online?)"; exit 1; }
 set -- $V "$2"
 $RCON "spreadplayers $(($1 + 12)) $2 0 6 false $NAME" >/dev/null

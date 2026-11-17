@@ -112,6 +112,8 @@ const settings = {
     "load_memory": false,
     "init_message": "Respond with hello world and your name", // sends to all on spawn
     "only_chat_with": [], // users that the bots listen to and send general messages to. if empty it will chat publicly
+    "character_auto_switch": "off", // "daily": switch the bot's character once a day (profile.characters)
+    "character_admins": ["HiImCheeZy"], // who may switch the character with !charakter <name>
     "meet_before_talk": false, // true: a player can talk to the bot only after meeting it (near it once, or in its home village)
 
     "speak": false,

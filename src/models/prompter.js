@@ -1,3 +1,4 @@
+import { knowledgeFor } from '../agent/library/characters.js';
 import { appendFileSync } from 'node:fs';
 import { readFileSync, mkdirSync, writeFileSync} from 'fs';
 import { Examples } from '../utils/examples.js';
@@ -205,7 +206,7 @@ export class Prompter {
         prompt = prompt.replaceAll('$NAME', this.agent.name);
         for (const [placeholder, field] of [['$BRAIN_KNOWLEDGE', 'brain_knowledge'], ['$TASK_KNOWLEDGE', 'task_knowledge']]) {
             if (!prompt.includes(placeholder)) continue;
-            const k = this.profile[field];
+            const k = knowledgeFor(this.profile, this.agent.name, field);
             prompt = prompt.replaceAll(placeholder, Array.isArray(k) ? k.map(line => `- ${line}`).join('\n') : (k || ''));
         }
 

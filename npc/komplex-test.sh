@@ -27,7 +27,7 @@ while time.time() < end:
                 print(f"{e.get('outcome')}: {e.get('reason', '')[:110]}"); sys.exit()
     except OSError:
         pass
-    if not started and time.time() - t0 / 1000 > 60:
+    if not started and time.time() - t0 / 1000 > 150:
         print("keine Aufgabe angelegt (direkt beantwortet)"); sys.exit()
     time.sleep(5)
 print("ZEITLIMIT")
@@ -127,16 +127,20 @@ if dran blaetter; then
 fi
 # 5h) Dorf (NUR=dorf,dorfnacht,dorfpflege,dorfturm,dorfwache): Dorf suchen und einziehen, nachts im eigenen Bett schlafen, Dorf pflegen
 if dran dorf || dran dorfnacht || dran dorfpflege || dran dorfturm || dran dorfwache; then
-  V=$(./rcon26.sh "execute at MindCE run locate structure #minecraft:village" | sed -n "s/.*at \[\([-0-9]*\), [^,]*, \([-0-9]*\)\].*/\1 \2/p")
+  # echt26 erzeugt keine Strukturen: Testdorf bei 1680/-1620 (per /place gesetzt); MindCE in die Naehe, zum-dorf.sh findet die Glocke
+  dran dorf && ./rcon26.sh "spreadplayers 1560 -1560 0 10 false MindCE" >/dev/null && sleep 4
+  V=dorf
   echo "dorf gefunden bei: $V" | tee -a $E
   if [ -n "$V" ] && dran dorf; then
-    set -- $V
-    ./rcon26.sh "spreadplayers $(($1+45)) $2 0 5 false MindCE" "time set 1000" "give MindCE oak_planks 16" "give MindCE bread 8" >/dev/null; sleep 4
+    RCON=./rcon26.sh /home/lars/mindcraft-ce/npc/zum-dorf.sh MindCE kit | tee -a $E
+    ./rcon26.sh "time set 1000" "give MindCE oak_planks 16" >/dev/null; sleep 4
     ./rcon26.sh "tp Tester MindCE" >/dev/null
     szene dorf "Such dir bitte ein Dorf hier in der Naehe und zieh dort in ein freies Haus ein." 420
     cat $L/bots26/MindCE/home.json | tee -a $E; echo | tee -a $E
   fi
-  H=$(python3 -c "import json;h=json.load(open(/bots26/MindCE/home.json));b=h[bell];print(b[x],b[y],b[z])" 2>/dev/null)
+  H=$(python3 -c "import json,sys;b=json.load(open(sys.argv[1]))['bell'];print(b['x'],b['y'],b['z'])" "$L/bots26/MindCE/home.json" 2>/dev/null)
+  # Pflege, Turm, Wache: erst ins Dorf setzen (der Testlauf startet woanders)
+  if [ -n "$H" ] && ! dran dorf && ! dran dorfnacht; then set -- $H; ./rcon26.sh "spreadplayers $1 $(($3 + 6)) 0 4 false MindCE" >/dev/null; sleep 4; ./rcon26.sh "tp Tester MindCE" >/dev/null; fi
   if [ -n "$H" ] && dran dorfnacht; then
     ./rcon26.sh "time set 12600" >/dev/null
     szene dorfnacht "Es wird Nacht. Geh bitte in deinem Dorf in dein Bett schlafen." 300
@@ -144,7 +148,7 @@ if dran dorf || dran dorfnacht || dran dorfpflege || dran dorfturm || dran dorfw
   fi
   if [ -n "$H" ] && dran dorfpflege; then
     set -- $H; BX=$1; BY=$2; BZ=$3
-    ./rcon26.sh "time set 1000" "give MindCE torch 16" "give MindCE dirt 32" "give MindCE wheat_seeds 16"       "fill $((BX-40)) $((BY-6)) $((BZ-40)) $BX $((BY+6)) $BZ wheat[age=7] replace wheat" "fill $BX $((BY-6)) $((BZ-40)) $((BX+40)) $((BY+6)) $BZ wheat[age=7] replace wheat"       "fill $((BX-40)) $((BY-6)) $BZ $BX $((BY+6)) $((BZ+40)) wheat[age=7] replace wheat" "fill $BX $((BY-6)) $BZ $((BX+40)) $((BY+6)) $((BZ+40)) wheat[age=7] replace wheat" | tee -a $E
+    ./rcon26.sh "time set 1000" "give MindCE torch 16" "give MindCE dirt 32" "give MindCE wheat_seeds 16" "fill $((BX-40)) $((BY-8)) $((BZ-40)) $BX $((BY+8)) $BZ wheat[age=7] replace wheat" "fill $((BX-40)) $((BY-8)) $BZ $BX $((BY+8)) $((BZ+40)) wheat[age=7] replace wheat" "fill $BX $((BY-8)) $((BZ-40)) $((BX+40)) $((BY+8)) $BZ wheat[age=7] replace wheat" "fill $BX $((BY-8)) $BZ $((BX+40)) $((BY+8)) $((BZ+40)) wheat[age=7] replace wheat" "fill $((BX-40)) $((BY-8)) $((BZ-40)) $BX $((BY+8)) $BZ carrots[age=7] replace carrots" "fill $((BX-40)) $((BY-8)) $BZ $BX $((BY+8)) $((BZ+40)) carrots[age=7] replace carrots" "fill $BX $((BY-8)) $((BZ-40)) $((BX+40)) $((BY+8)) $BZ carrots[age=7] replace carrots" "fill $BX $((BY-8)) $BZ $((BX+40)) $((BY+8)) $((BZ+40)) carrots[age=7] replace carrots" "fill $((BX-40)) $((BY-8)) $((BZ-40)) $BX $((BY+8)) $BZ potatoes[age=7] replace potatoes" "fill $((BX-40)) $((BY-8)) $BZ $BX $((BY+8)) $((BZ+40)) potatoes[age=7] replace potatoes" "fill $BX $((BY-8)) $((BZ-40)) $((BX+40)) $((BY+8)) $BZ potatoes[age=7] replace potatoes" "fill $BX $((BY-8)) $BZ $((BX+40)) $((BY+8)) $((BZ+40)) potatoes[age=7] replace potatoes" | grep -v "No blocks" | tee -a $E
     szene dorfpflege "Kuemmere dich bitte um dein Dorf: Felder ernten und nachpflanzen, Fackeln setzen, Loecher stopfen." 480
     grep -c "refused" $J | sed "s/^/abgelehnte Eingriffe im Journal: /" | tee -a $E
   fi

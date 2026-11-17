@@ -99,7 +99,8 @@ export function surfaceAt(bot, x, z, y) {
         if (/_leaves$|water|lava/.test(b.name) || BUILDING.test(b.name)) return null;
         const above = new Vec3(x, yy + 1, z);
         const a = bot.blockAt(above);
-        if (!a || !/^(air|cave_air|short_grass|tall_grass|fern)$/.test(a.name)) return null;
+        // flowers and grass on top are fine; water is not ground
+        if (!a || a.boundingBox !== 'empty' || /water|lava/.test(a.name)) return null;
         return above;
     }
     return null;
@@ -139,15 +140,17 @@ export function towerNeeds(wood, h = TOWER_HEIGHT) {
 /** A tower site at the village edge: flat 5x5 natural ground, nothing built within 3 blocks. */
 export function findTowerSite(bot, center, near) {
     const sites = [];
-    for (let r = 16; r <= 28; r += 4) for (let a = 0; a < 16; a++) {
-        const x = Math.round(center.x + r * Math.cos(a * Math.PI / 8)), z = Math.round(center.z + r * Math.sin(a * Math.PI / 8));
+    for (let r = 12; r <= 36; r += 4) for (let a = 0; a < 24; a++) {
+        const x = Math.round(center.x + r * Math.cos(a * Math.PI / 12)), z = Math.round(center.z + r * Math.sin(a * Math.PI / 12));
         const p = surfaceAt(bot, x, z, center.y);
         if (!p || !inHomeVillage(bot, p)) continue;
         let ok = true;
-        for (let dx = -2; dx <= 2 && ok; dx++) for (let dz = -2; dz <= 2 && ok; dz++) {
+        // the 3x3 tower and its ladder cell: ground at most one block lower, never higher, no paths or fields
+        for (const [dx, dz] of [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 0], [0, 1], [1, -1], [1, 0], [1, 1], [0, 2]]) {
+            if (!ok) break;
             const q = surfaceAt(bot, x + dx, z + dz, p.y);
             const g = q && bot.blockAt(q.offset(0, -1, 0));
-            if (!q || q.y !== p.y || !g || /^(dirt_path|farmland)$|water/.test(g.name)) ok = false;
+            if (!q || q.y > p.y || q.y < p.y - 1 || !g || /^(dirt_path|farmland)$|water/.test(g.name)) ok = false;
         }
         if (!ok) continue;
         const built = bot.findBlocks({matching: b => !!b && BUILDING.test(b.name) && !/torch$/.test(b.name), maxDistance: 3, point: p, count: 1}) || [];

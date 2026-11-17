@@ -7,6 +7,7 @@ import { findVillage, bedsAround, villagersAround, chooseFreeBed, isNight, darkS
     villageWood, towerNeeds, findTowerSite, villageThreats, RANGED, TOWER_HEIGHT } from "../../library/village.js";
 import { makeStash, STASH_PLACE } from "../../library/stash.js";
 import { ripeCrops, CROPS } from "./harvestField.js";
+import { currentCharacter } from "../../library/characters.js";
 import Vec3 from "vec3";
 
 // Lars, 17.11.: "ein Dorfbewohner auf Crack". He moves into a free bed of a village, sleeps there and keeps
@@ -14,6 +15,13 @@ import Vec3 from "vec3";
 const v3 = p => new Vec3(p.x, p.y, p.z);
 const count = (bot, re) => bot.inventory.items().filter(i => re.test(i.name)).reduce((n, i) => n + i.count, 0);
 const fmt = p => `${Math.round(p.x)},${Math.round(p.y)},${Math.round(p.z)}`;
+
+/** Walk into the home village; a failure result if it is not reached (its chunks are not even loaded then). */
+async function reachVillage(bot, center) {
+    if (bot.entity.position.distanceTo(center) > 16) await skills.goToPosition(bot, center.x, center.y, center.z, 4).catch(() => false);
+    const d = Math.round(bot.entity.position.distanceTo(center));
+    return d > 24 ? toolResult('failed', `Could not reach my village at ${fmt(center)} (still ${d} blocks away). Walk there first: goToRememberedPlace dorf.`, 'move_failed') : null;
+}
 
 async function moveIn(agent) {
     const bot = agent.bot;
@@ -73,7 +81,8 @@ async function sleep(agent) {
     const lay = Date.now();
     while (bot.isSleeping && !bot.interrupt_code) {
         await sleepMs(500);
-        if (Date.now() - lay > 15000 && isNight(bot)) {
+        // a character that does not guard (guard: false) just stays in bed
+        if (Date.now() - lay > 15000 && isNight(bot) && currentCharacter(agent)?.guard !== false) {
             try { await bot.wake(); } catch {}
             const w = await watch(agent);
             return toolResult(w.outcome || 'ok', `Respawn point set at my bed ${fmt(bed)}. Not enough players asleep, so I got up and kept watch: ${w.message || w.reason || ''}${moved}`);
@@ -92,6 +101,9 @@ async function watch(agent) {
     const center = v3(home.bell);
     const t = agent.memory_bank?.recallPlace?.('wachturm');
     const post = t ? new Vec3(Math.floor(t[0]), Math.floor(t[1]), Math.floor(t[2])) : center;
+    const far = await reachVillage(bot, center);
+    if (far) return far;
+    bot.modes?.pause?.('unstuck');
     const toPost = () => bot.entity.position.distanceTo(post) > 3 ? skills.goToPosition(bot, post.x, post.y, post.z, t ? 0 : 3).catch(() => false) : true;
     await toPost();
     const start = Date.now();
@@ -153,6 +165,8 @@ async function tower(agent) {
     const short = ([n, c]) => count(bot, new RegExp(`^${n}$`)) < c;
     const missing = Object.entries(need).filter(short).map(([n, c]) => `${c - count(bot, new RegExp(`^${n}$`))} ${n}`);
     if (missing.length) return toolResult('blocked', `For a watchtower in the village style (${wood}) I still need ${missing.join(', ')} (about ${Math.ceil((need[planks] + 20) / 4)} ${wood}_log in all). Get them, then village tower again.`, 'materials');
+    const far = await reachVillage(bot, center);
+    if (far) return far;
     const site = findTowerSite(bot, center, bot.entity.position);
     if (!site) return toolResult('blocked', 'No flat free spot at the village edge for a tower (5x5, away from houses, paths and fields).', 'no_site');
     await skills.goToPosition(bot, site.x + 0.5, site.y, site.z + 0.5, 0);
@@ -181,7 +195,10 @@ async function care(agent) {
     const home = getHome(bot);
     if (!home?.bell) return toolResult('blocked', 'No home village yet: village move_in first.', 'no_home');
     const center = v3(home.bell);
-    if (bot.entity.position.distanceTo(center) > 16) await skills.goToPosition(bot, center.x, center.y, center.z, 4);
+    const far = await reachVillage(bot, center);
+    if (far) return far;
+    // scanning and short walks look like standing still: no unstuck reflex during care
+    bot.modes?.pause?.('unstuck');
     const done = [];
     // 1. fields: harvest what is ripe and sow again
     const ripe = ripeCrops(bot, center, 40).filter(b => inHomeVillage(bot, b.position)).slice(0, 32);

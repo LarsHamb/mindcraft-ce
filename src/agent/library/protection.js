@@ -141,13 +141,16 @@ export function villageCare(bot, target, heldName) {
     if (SEEDS.test(heldName) && below?.name === 'farmland') return 'sowing';
     if (FILL.test(heldName) && isGroundHole(bot, target)) return 'hole';
     if (heldName === 'chest' && inHomeHouse(bot, target)) return 'own chest';
+    // a crafting table in his own house (he picks it up again after crafting)
+    if (heldName === 'crafting_table' && inHomeHouse(bot, target)) return 'own crafting table';
     // Lars, 17.11.: as village chief he may add NEW buildings in the village style (tower, fence), never touching
     // existing ones: no foreign building block within 2 blocks, not on paths, fields or crops.
     if (NEW_BUILD.test(heldName) && newBuildSpot(bot, target)) return 'new build';
     return null;
 }
 
-const NEW_BUILD = /(_planks|_log|_fence|_slab|_stairs|^ladder|^cobblestone|^stone_bricks|_wall|^torch|^lantern|sandstone)$/;
+// crafting_table: set down for crafting on free ground (it is picked up again afterwards)
+const NEW_BUILD = /(_planks|_log|_fence|_slab|_stairs|^ladder|^cobblestone|^stone_bricks|_wall|^torch|^lantern|sandstone|^crafting_table)$/;
 export function newBuildSpot(bot, target) {
     const s = state(bot);
     const below = bot.blockAt(target.offset(0, -1, 0));

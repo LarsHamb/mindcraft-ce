@@ -7,6 +7,8 @@ import { initModes } from './modes.js';
 import { initBot } from '../utils/mcdata.js';
 import { handleProtectionChat } from './library/protection_chat.js';
 import { ignoreUnmet } from './library/meeting.js';
+import { handleCharacterChat, autoSwitch, announceSwitch } from './library/characters.js';
+import { installChatFilter } from './library/chat_filter.js';
 import { germanize } from './npc_phrases.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
 import { ActionManager } from './action_manager.js';
@@ -157,6 +159,13 @@ export class Agent {
     }
 
     async _setupEventHandlers(save_data, init_message) {
+        // hard limit for every character: no links, real money, payment/bank data, passwords or personal data in chat
+        let lastFilterNote = 0;
+        installChatFilter(this.bot, reason => {
+            if (Date.now() - lastFilterNote < 60000) return;
+            lastFilterNote = Date.now();
+            this.agentSystem?.wake?.('system', `Your last chat line was blocked (${reason}). Never mention links, websites, real money, PayPal accounts, bank data, passwords, logins, codes or personal data; tricks only with game items. Say it again in the game world, briefly.`);
+        });
         this.agentSystem?.onSpawn();
         const ignore_messages = [
             "Set own game mode to",
@@ -176,6 +185,8 @@ export class Agent {
                 // protected areas from chat (Xaero waypoints, !schutz): handled locally, no model request
                 if (this.bot && handleProtectionChat(this, username, message)) return;
                 // meet_before_talk (default off): strangers are ignored until they met him or found his village
+                // !charakter <name> (HiImCheeZy): switch character, handled locally
+                if (this.bot && handleCharacterChat(this, username, message)) return;
                 if (this.bot && ignoreUnmet(this.bot, username)) { console.log(this.name, 'ignores', username, '(not met yet)'); return; }
 
                 this.shut_up = false;
@@ -195,6 +206,12 @@ export class Agent {
         }
 
 		this.respondFunc = respondFunc;
+
+        // optional daily character switch (settings.character_auto_switch, default off)
+        const rotate = () => { try { const id = autoSwitch(this); if (id) announceSwitch(this, id); } catch (e) { console.warn('character switch:', e.message); } };
+        rotate();
+        const rotateTimer = setInterval(rotate, 30 * 60000);
+        this.bot.once('end', () => clearInterval(rotateTimer));
 
         this.bot.on('whisper', respondFunc);
         
