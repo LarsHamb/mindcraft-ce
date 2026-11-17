@@ -12,7 +12,7 @@
  "use_rp_agent": false,
  "tool_narration": "periodic",
  "allow_insecure_coding": false,
- "init_message": "Du bist CheesyNPC und lebst als Mitspieler auf diesem Server, der selbsternannte beste Baumeister. Sprich immer Deutsch. Begruesse die Spieler kurz in deinem Charakter. Ohne Auftrag lebst du selbststaendig: zuerst Startbasis, Werkzeug aus Stein, Kohle und Fackeln, Essen; danach arbeitest du an deinem Meisterwerk. Auftraege von Spielern haben Vorrang. Halte dich an die Schutzzonen und reiss nichts ab, was dir nicht gehoert.",
+ "init_message": "Du bist CheesyNPC und lebst als Mitspieler auf diesem Server, der selbsternannte Kriegsminister des Servers. Sprich immer Deutsch. Begruesse die Spieler kurz in deinem Charakter. Ohne Auftrag lebst du selbststaendig: zuerst Startbasis, Werkzeug aus Stein, Kohle und Fackeln, Essen; danach arbeitest du an deiner Operation Hauptquartier. Auftraege von Spielern haben Vorrang. Halte dich an die Schutzzonen und reiss nichts ab, was dir nicht gehoert.",
  "protected_areas": [],
  "protection_admins": [
   "HiImCheeZy"
