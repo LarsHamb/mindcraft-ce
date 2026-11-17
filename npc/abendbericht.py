@@ -12,8 +12,9 @@ Aufruf: python3 abendbericht.py [Stunden zurueck, Standard 24]
 import json, os, re, sys, time, datetime, collections
 
 HOURS = float(sys.argv[1]) if len(sys.argv) > 1 else 24
-D = os.path.expanduser("~/mindcraft-ce-lauf/bots-live/CheesyNPC")
-SERVERLOG = os.path.expanduser("~/minecraft/logs/latest.log")
+D = os.path.expanduser(os.environ.get("BOTDIR", "~/mindcraft-ce-lauf/bots-live/CheesyNPC"))
+SERVERLOG = os.path.expanduser(os.environ.get("SERVERLOG", "~/minecraft/logs/latest.log"))
+ASSUME_PLAY = os.environ.get("ASSUME_PLAY") == "1"  # test runs: count the whole period as play time
 BOTS = {"CheesyNPC"}
 now = time.time() * 1000
 since = now - HOURS * 3600000
@@ -44,6 +45,7 @@ try:
 except OSError:
     pass
 for start in online.values(): play.append((start, now))
+if ASSUME_PLAY: play = [(since, now)]
 # merge intervals of several players
 play.sort(); merged = []
 for a, b in play:
@@ -62,8 +64,9 @@ for a, b in merged:
             stalls.append((x, (y - x) / 60000))
 
 tasks = [e for e in J if e["type"] == "task_end"]
-player_tasks = [e for e in tasks if e.get("source") not in ("system", "ADMIN", None, "CheesyNPC")]
-own = [e for e in tasks if e.get("source") in ("system",) and e.get("outcome") == "done"]
+is_player = lambda e: e.get("forPlayer") if "forPlayer" in e else e.get("source") not in ("system", "ADMIN", None, "CheesyNPC")
+player_tasks = [e for e in tasks if is_player(e)]
+own = [e for e in tasks if not is_player(e) and e.get("outcome") == "done"]
 deaths = [e for e in J if e["type"] == "death"]
 stuck = [e for e in J if e["type"] == "stuck"]
 blocked = collections.Counter(re.sub(r"\d+", "#", e.get("reason", ""))[:80] for e in tasks if e.get("outcome") in ("blocked", "error"))
