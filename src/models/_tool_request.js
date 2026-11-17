@@ -1,5 +1,6 @@
 // Separate from sendRequest: develop's text, vision and embedding contracts stay intact.
 import { randomUUID } from 'node:crypto';
+import { cachedPrefix, dropCache, isCacheError } from './gemini_cache.js';
 
 const defaults = {
     openai: 'gpt-5.4-mini', anthropic: 'claude-sonnet-4-6', google: 'gemini-2.5-flash',
@@ -84,11 +85,19 @@ export async function sendToolRequest(provider, turns, systemMessage, tools = []
                 ? [{ functionResponse: { name: turn.name, response: { result: turn.content } } }]
                 : [...(turn.content ? [{ text: turn.content }] : []), ...(turn.tool_calls || []).map(call => ({ functionCall: { name: call.function.name, args: JSON.parse(call.function.arguments) } }))]),
         }));
-        const response = await provider.genAI.models.generateContent({ model, contents, config: {
-            ...params, abortSignal: signal,
-            systemInstruction: schemaInstructions([systemMessage, ...history.filter(t => t.role === 'system').map(t => t.content)].filter(Boolean).join('\n'), responseFormat),
-            ...(tools.length ? { tools: [{ functionDeclarations: tools.map(t => ({ name: t.function.name, description: t.function.description, parametersJsonSchema: t.function.parameters })) }] } : {}),
-        } });
+        const systemInstruction = schemaInstructions([systemMessage, ...history.filter(t => t.role === 'system').map(t => t.content)].filter(Boolean).join('\n'), responseFormat);
+        const geminiTools = tools.length ? [{ functionDeclarations: tools.map(t => ({ name: t.function.name, description: t.function.description, parametersJsonSchema: t.function.parameters })) }] : null;
+        // Boys patch: the fixed prefix (system instruction + tools) goes into an explicit cache when enabled
+        const cachedContent = await cachedPrefix(provider.genAI, model, systemInstruction, geminiTools);
+        const plain = { ...(systemInstruction ? { systemInstruction } : {}), ...(geminiTools ? { tools: geminiTools } : {}) };
+        const send = prefix => provider.genAI.models.generateContent({ model, contents, config: { ...params, abortSignal: signal, ...prefix } });
+        let response;
+        try { response = await send(cachedContent ? { cachedContent } : plain); }
+        catch (err) {
+            if (!cachedContent || signal?.aborted || !isCacheError(err)) throw err;
+            dropCache(cachedContent);
+            response = await send(plain);
+        }
         const reason = response.candidates?.[0]?.finishReason;
         if (reason === 'MAX_TOKENS') throw new Error('Tool response was truncated; increase the output token limit');
         if (response.promptFeedback?.blockReason || (reason && !['STOP','FINISH_REASON_UNSPECIFIED'].includes(reason)))

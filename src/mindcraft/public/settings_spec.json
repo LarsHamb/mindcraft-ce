@@ -311,6 +311,11 @@
         "default": [],
         "description": "Player names that do not count as online players (other bots)."
     },
+    "gemini_explicit_cache": {
+        "type": "boolean",
+        "default": false,
+        "description": "Gemini native tools: keep the fixed prefix (system instruction + tools) in an explicit context cache, billed at the cached price. Falls back to normal requests on any cache error."
+    },
     "idle_wake_seconds": {
         "type": "number",
         "default": 0,

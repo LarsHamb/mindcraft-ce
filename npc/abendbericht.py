@@ -72,7 +72,9 @@ stuck = [e for e in J if e["type"] == "stuck"]
 blocked = collections.Counter(re.sub(r"\d+", "#", e.get("reason", ""))[:80] for e in tasks if e.get("outcome") in ("blocked", "error"))
 failed_tools = collections.Counter(f"{e['tool']}: {re.sub(r'-?[0-9]+', '#', e.get('text', ''))[:70]}" for e in J if e["type"] == "tool" and e.get("status") in ("failed", "blocked"))
 tok_in = sum(u["input"] for u in U); tok_out = sum(u["output"] + u.get("thoughts", 0) for u in U)
-euro = (tok_in * 0.50 + tok_out * 3.0) / 1e6 * 0.92  # angenommene Flash-Preise in $/Mio., grob in Euro
+tok_cached = sum(u.get("cached") or 0 for u in U)
+# angenommene Flash-Preise in $/Mio. (Eingabe 0.50, aus dem Cache 0.05, Ausgabe 3.00), grob in Euro
+euro = ((tok_in - tok_cached) * 0.50 + tok_cached * 0.05 + tok_out * 3.0) / 1e6 * 0.92
 
 h = play_ms / 3600000
 print(f"# Abendbericht CheesyNPC ({HOURS:.0f} h zurueck, Stand {time.strftime('%d.%m. %H:%M')})")
@@ -83,7 +85,7 @@ print(f"- **Auftraege von Spielern: {len(player_tasks)} beendet, davon {sum(e.ge
 print(f"- eigene Ziele erledigt: {len(own)}" + (f" (zuletzt: {own[-1].get('objective', '')[:80]})" if own else ""))
 print(f"- Tode: {len(deaths)}" + "".join(f"\n  - {time.strftime('%H:%M', time.localtime(e['at'] / 1000))} {e.get('message', '')[:80]} bei {e.get('pos')}" for e in deaths))
 print(f"- 'Ich haenge fest': {len(stuck)}")
-print(f"- Tokens: {tok_in / 1e6:.2f} Mio. Eingabe, {tok_out / 1e3:.0f} Tsd. Ausgabe, ca. {euro:.2f} EUR (geschaetzt)")
+print(f"- Tokens: {tok_in / 1e6:.2f} Mio. Eingabe (davon {tok_cached / max(tok_in, 1):.0%} aus dem Cache), {tok_out / 1e3:.0f} Tsd. Ausgabe, ca. {euro:.2f} EUR (geschaetzt)")
 if stalls:
     print("- laengste Stillstaende: " + ", ".join(f"{time.strftime('%H:%M', time.localtime(t / 1000))} {m:.0f} min" for t, m in sorted(stalls, key=lambda s: -s[1])[:5]))
 if blocked:
