@@ -1,3 +1,4 @@
+import { journal } from '../journal.js';
 import { rememberPlayer } from '../library/player_memory.js';
 import { randomUUID } from 'node:crypto';
 import { BrainAgent, brainTools } from './brain.js';
@@ -170,12 +171,14 @@ export class AgentSystem {
         const directive={id:randomUUID(),objective:args.objective,briefing:args.briefing||'',constraints:args.constraints||'',
             tools:args.tools,model:args.model||(this.agent.prompter.model_selection?.enabled?this.agent.prompter.model_selection.default_task_model:undefined),source,startedAt:this.now()};
         this.currentDirective=directive;this.lastCheck=this.now();
+        journal('task_start',{objective:directive.objective,source},this.agent.bot);
         const generation=this.generation;
         this.task.source=source;
         const active=this.task.performTask(directive.objective,[directive.briefing,directive.constraints].filter(Boolean).join('\n'),directive)
             .then(async result=>{
                 if(generation!==this.generation||this.task.cancelJob||this.currentDirective?.id!==directive.id) return;
                 this.lastDirective={...directive,outcome:result.work_done?'done':result.blocked?'blocked':'paused',result};
+                journal('task_end',{objective:directive.objective,source,outcome:this.lastDirective.outcome,reason:String(result.chat_response||result.summary||'').slice(0,160)},this.agent.bot);
                 this.currentDirective=null;this.brain.recordTaskOutcome(result);
                 // what it did for whom (player memory); only for real players, not for its own plans
                 if(result.work_done&&source&&!['system','ADMIN',this.agent.name].includes(source)) rememberPlayer(this.agent.name,source,`did for them: ${directive.objective}`,'done');
@@ -190,6 +193,7 @@ export class AgentSystem {
             }).catch(async error=>{
                 if(generation!==this.generation||this.task.cancelJob) return;
                 this.lastDirective={...directive,outcome:'blocked',error:error.message};this.currentDirective=null;
+                journal('task_end',{objective:directive.objective,source,outcome:'error',reason:error.message},this.agent.bot);
                 console.warn('Task failed:',error.stack||error);
                 await this.say(source,responseProblem(error));
                 if(this.ready) this.wake(source,`Task error: ${error.message}`);

@@ -1,3 +1,4 @@
+import { initJournal, journal } from './journal.js';
 import { History } from './history.js';
 import { Coder } from './coder.js';
 import { VisionInterpreter } from './vision/vision_interpreter.js';
@@ -32,6 +33,7 @@ export class Agent {
         this.actions = new ActionManager(this);
         this.prompter = new Prompter(this, settings.profile);
         this.name = (this.prompter.getName() || '').trim();
+        initJournal(this.name);
         console.log(`Initializing agent ${this.name}...`);
         console.log(`${this.name} action interface: ${this.prompter.use_tools ? 'native tool calling' : 'text !commands'}${this.prompter.use_brain ? ' (Brain/RP/Task agents)' : ''}`);
         
@@ -502,6 +504,7 @@ export class Agent {
         this.bot.on('messagestr', async (message, _, jsonMsg) => {
             if (jsonMsg.translate && jsonMsg.translate.startsWith('death') && message.startsWith(this.name)) {
                 console.log('Agent died: ', message);
+                journal('death', {message}, this.bot);
                 let death_pos = this.bot.entity.position;
                 this.memory_bank.rememberPlace('last_death_position', death_pos.x, death_pos.y, death_pos.z);
                 let death_pos_text = null;

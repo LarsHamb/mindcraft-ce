@@ -29,3 +29,9 @@ test('model requests wait while no real player is online', async () => {
     delete bot.players.Tim;
     await waitForPlayers({bot}); // disabled: returns at once
 });
+
+test('creeper lines come in character and vary', () => {
+    const a = germanize('Aaa! A creeper!'), b = germanize('Aaa! A creeper!');
+    assert.match(a + b, /Creeper|zischt/);
+    assert.notEqual(a, b);
+});

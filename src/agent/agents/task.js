@@ -1,3 +1,4 @@
+import { journal } from '../journal.js';
 import { executeTool, getToolDefinitions, isToolAction } from '../commands/tool_registry.js';
 import { toolCallMessage } from '../../models/_tool_request.js';
 import settings from '../settings.js';
@@ -140,7 +141,8 @@ export class TaskAgent {
                     history.push({role:'tool',name:call.name,tool_call_id:call.id,content});
                     await this.agent.history?.add('system',`${call.name}: ${content}`);
                     this.lastResults.push({name:call.name,...result});this.lastResults=this.lastResults.slice(-8);
-                    if(!control) {this.lastResultAt=Date.now();this.lastResultOk=['ok','partial'].includes(result?.status);}
+                    if(!control) {this.lastResultAt=Date.now();this.lastResultOk=['ok','partial'].includes(result?.status);
+                        journal('tool',{tool:call.name,status:result?.status,text:String(result?.text||'').slice(0,160)},this.agent.bot);}
                     // put back nearby blocks it broke (protected areas, surface holes, saplings) without a model request
                     if(!control&&!this.cancelJob) await restoreBetweenTools(this.agent).catch(error=>console.warn('restore:',error.message));
                     if(!control) await narrator.afterTool(result,call);

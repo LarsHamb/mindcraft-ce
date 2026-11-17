@@ -71,7 +71,13 @@ const EXACT = new Map(Object.entries({
     'The path is lit now.': 'Der Weg ist jetzt hell.',
 }));
 
+// Character lines (CheesyNPC, Lars 17.11.): creeper paranoia, a few variants so it does not repeat itself
+const CREEPER = ['Ein Creeper! Finger weg von meinem Meisterwerk!', 'Da zischt was. Ich wusste, dass die hinter meinen Bauten her sind!',
+    'Creeper! Der Beweis Nummer siebzehn, dass die mich sabotieren!'];
+let creeperTurn = 0;
+
 const PATTERNS = [
+    [/^Aaa! A creeper!$/, () => CREEPER[creeperTurn++ % CREEPER.length]],
     [/^I've made some progress gathering (.+)\.$/, (m, r) => `Ich komme mit ${res(r)} voran.`],
     [/^I'm gathering (.+)\.$/, (m, r) => `Ich sammle ${res(r)}.`],
     [/^I couldn't find more (.+) nearby\.$/, (m, r) => `Ich finde hier kein ${res(r)} mehr.`],

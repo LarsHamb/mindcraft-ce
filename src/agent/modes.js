@@ -5,6 +5,7 @@ import settings from './settings.js'
 import convoManager from './conversation.js';
 import { protectedAreaAt, dueRestores, finishRestore } from './library/protection.js';
 import Vec3 from 'vec3';
+import { journal } from './journal.js';
 import pf from 'mineflayer-pathfinder';
 import { RANGED, ILLAGERS, markIllagers, dangerAt } from './library/danger.js';
 
@@ -49,6 +50,7 @@ const modes_list = [
                 // water and the emergency window ran out. Now: stop fighting and walking, keep the window open
                 // while under water, and swim to the nearest air above water if going straight up does not work.
                 say(agent, 'I need air!');
+                journal('reflex', {kind: 'air'}, bot);
                 agent.emergencyUntil = Date.now() + 15000;
                 this.surfacing = true;
                 execute(this, agent, async () => {
@@ -159,18 +161,20 @@ const modes_list = [
         update: async function (agent) {
             const bot = agent.bot;
             const me = bot.entity.position;
+            // creepers too (character: creeper paranoia; and self_defense used to walk it straight into them)
             const near = Object.values(bot.entities).filter(e => e !== bot.entity && e.position && e.position.distanceTo(me) <= 40
-                && (RANGED.has(e.name) || ILLAGERS.has(e.name)));
+                && (RANGED.has(e.name) || ILLAGERS.has(e.name) || (e.name === 'creeper' && e.position.distanceTo(me) <= 10)));
             if (!near.length) return;
             const zone = markIllagers(bot, near);
             if (zone) say(agent, `Achtung, ${zone.name === 'pillagers' ? 'Pillager' : 'ein Pillager-Lager'} bei ${zone.x} / ${zone.z}. Ich halte Abstand.`);
             const closest = near.reduce((a, b) => (a.position.distanceTo(me) <= b.position.distanceTo(me) ? a : b));
             const d = closest.position.distanceTo(me);
             // skeletons are everywhere at night: flee from them only when close; illagers always
-            const flee = ILLAGERS.has(closest.name) ? d <= 40 : d <= 20;
+            const flee = ILLAGERS.has(closest.name) ? d <= 40 : closest.name === 'creeper' ? d <= 10 : d <= 20;
             if (!flee || Date.now() - this.lastFlee < 3000) return;
             this.lastFlee = Date.now();
             say(agent, `Aaa! A ${closest.name}!`);
+            journal('reflex', {kind: 'flee', mob: closest.name}, bot);
             agent.emergencyUntil = Date.now() + 15000;
             execute(this, agent, async () => {
                 try { bot.pvp?.stop?.(); } catch {}
@@ -200,6 +204,7 @@ const modes_list = [
             agent.actions.progress?.observe(bot);
             if (!agent.actions.progress || agent.actions.progress.healthy(this.max_stuck_time*1000)) return;
             say(agent, 'I\'m stuck!');
+            journal('stuck', {action: agent.actions.currentActionLabel}, bot);
             execute(this, agent, async () => {
                 await skills.moveAway(bot, 3);
                 say(agent, 'Trying another approach.');
