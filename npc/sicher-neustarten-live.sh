@@ -16,9 +16,17 @@ try:
     lines = open(sys.argv[1], errors="replace").read().splitlines()[-3000:]
 except OSError:
     print(0); sys.exit()
+# his own lines: the account name and every character's nickname (Styled Nicknames, e.g. "Kriegsminister Hmmbert")
+import json
+own = {"CheesyNPC"}
+try:
+    for c in json.load(open("/home/lars/mindcraft-ce/npc/cheesynpc.json", encoding="utf-8")).get("characters", {}).values():
+        own.add(re.sub(r"<[^>]+>", "", c.get("display", "")).strip())
+except (OSError, ValueError):
+    pass
 for line in lines:
     m = re.match(r"\[(\d\d):(\d\d):(\d\d)\] \[Server thread/INFO\]: (\[Not Secure\] )?<([^>]+)>", line)
-    if not m or m.group(5) == "CheesyNPC":
+    if not m or m.group(5).strip() in own:
         continue
     t = now.replace(hour=int(m.group(1)), minute=int(m.group(2)), second=int(m.group(3)), microsecond=0)
     if t > now:
