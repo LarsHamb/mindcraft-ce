@@ -52,6 +52,13 @@ class DigStairsTool extends BaseTool {
             let done = 0;
             for (let i = 1; i <= steps; i++) {
                 if (bot.interrupt_code) return toolResult('cancelled', `Stopped after ${done} steps.`, 'interrupted');
+                // test 18.11.: deep down the stone pickaxes wore out, then the iron one, and a diamond could not be mined.
+                // Keep a stone pickaxe going: craft one from cobblestone/cobbled deepslate and sticks when none is left.
+                const count = re => bot.inventory.items().filter(it => re.test(it.name)).reduce((n, it) => n + it.count, 0);
+                if (!count(/^stone_pickaxe$/) && count(/^stick$/) >= 2 && count(/^(cobblestone|cobbled_deepslate|blackstone)$/) >= 3)
+                    await skills.craftRecipe(bot, 'stone_pickaxe', 1).catch(() => {});
+                if (i === 1 && bot.entity.position.y < 45 && count(/^stick$/) < 2 && !count(/_(log|planks)$/))
+                    return toolResult('blocked', 'Going deeper without sticks or wood: when the pickaxes wear out you cannot make new ones down here. Bring 4+ sticks (or logs) and a crafting table first.', 'no_sticks');
                 // never dig on with the last pickaxe almost broken: the way back up needs one (test 18.11.)
                 const picks = pickaxes(bot);
                 if (!picks.length || (picks.length === 1 && picks[0].left < 0.12))
