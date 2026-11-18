@@ -15,6 +15,13 @@ const near = (a,b) => {
     const x=tokens(a),y=tokens(b);
     return x.size&&y.size?[...x].filter(w=>y.has(w)).length/Math.max(x.size,y.size)>=0.8:a===b;
 };
+// Internal planner/tool text never goes to the chat: tool names, limits, identifiers, brackets.
+const INTERNAL=/(stay|goToSurface|goToCoordinates|goToRememberedPlace|collectBlocks|craftRecipe|searchForBlock|move_in|village|stash|digStairs|buildShelter|placeHere|tool|Tool|Limit|limit|blockiert|blocked|cancelled|Pathfind\w*)|[a-z][A-Z]\w*|_[a-z]|\(.*\)/;
+export function chatSafe(text) {
+    const first=String(text||'').replace(/\s+/g,' ').trim().split(/(?<=[.!?])\s/)[0].slice(0,140);
+    return !first||INTERNAL.test(first)?'Das klappt gerade nicht, ich versuche es anders.':first;
+}
+
 export class AgentSystem {
     constructor(agent,{now=Date.now}={}) {
         this.agent=agent;this.now=now;this.queue=new MessageQueue();this.brain=new BrainAgent(agent,this.queue);
@@ -200,14 +207,16 @@ export class AgentSystem {
                     if(generation===this.generation) for(const id of completed) this.brain.goals.complete(id,this.agent.bot);
                 }
                 if(generation!==this.generation||this.task.cancelJob) return;
-                if(!result.work_done&&result.chat_response) await this.say(source,result.chat_response);
+                // live 18.11.: "Ausharren bis Tag wird ist per stay blockiert (stay-Limit erreicht) ..." went to the public
+                // chat. A task's closing text is a report for Brain; only a waiting player gets one short line.
+                if(!result.work_done&&result.chat_response&&directive.forPlayer) await this.say(source,chatSafe(result.chat_response));
                 if(this.ready) this.wake(source,`Task ${this.lastDirective.outcome}: ${JSON.stringify(result)}\nRecent tools: ${JSON.stringify(this.task.lastResults)}`);
             }).catch(async error=>{
                 if(generation!==this.generation||this.task.cancelJob) return;
                 this.lastDirective={...directive,outcome:'blocked',error:error.message};this.currentDirective=null;
                 journal('task_end',{objective:directive.objective,source,forPlayer:directive.forPlayer,outcome:'error',reason:error.message},this.agent.bot);
                 console.warn('Task failed:',error.stack||error);
-                await this.say(source,responseProblem(error));
+                if(directive.forPlayer) await this.say(source,responseProblem(error));
                 if(this.ready) this.wake(source,`Task error: ${error.message}`);
             }).finally(async()=>{
                 if(this.activeTask===active) this.activeTask=null;

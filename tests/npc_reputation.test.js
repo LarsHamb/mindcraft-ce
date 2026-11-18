@@ -97,3 +97,10 @@ test('chat hints: manipulation lowers trust and warns Brain; very low trust asks
     noteExperience(name, 'HiImCheeZy', 'schlug dich', -6);
     assert.doesNotMatch(reputationChat(agent, 'HiImCheeZy', 'hol mir Holz', ['HiImCheeZy']), /Lehne/);
 });
+
+test('task texts for the chat: internal tool talk is replaced, a plain sentence stays', async () => {
+    const { chatSafe } = await import('../src/agent/agents/system.js');
+    assert.equal(chatSafe('Ausharren bis Tag wird ist per stay blockiert (stay-Limit erreicht). Der Bunker ist sicher.'), 'Das klappt gerade nicht, ich versuche es anders.');
+    assert.equal(chatSafe('Ich finde hier keinen Sand mehr. Ich suche weiter.'), 'Ich finde hier keinen Sand mehr.');
+    assert.equal(chatSafe('collectBlocks gave up after 3 targets'), 'Das klappt gerade nicht, ich versuche es anders.');
+});
