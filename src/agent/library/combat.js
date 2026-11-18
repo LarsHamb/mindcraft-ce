@@ -5,7 +5,7 @@
 import pf from 'mineflayer-pathfinder';
 import Vec3 from 'vec3';
 
-const RANGED = /^(skeleton|stray|bogged|pillager|witch|blaze|ghast|evoker|illusioner)$/;
+const RANGED = /^(skeleton|stray|bogged|parched|pillager|witch|blaze|ghast|evoker|illusioner)$/;
 const COOLDOWN = [
     [/_sword$/, 625], [/^(wooden|stone)_axe$/, 1250], [/^(iron)_axe$/, 1110], [/^(golden|diamond|netherite)_axe$/, 1000],
     [/_pickaxe$/, 830], [/_shovel$/, 1000], [/^trident$/, 910], [/^mace$/, 1670],

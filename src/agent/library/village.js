@@ -161,8 +161,8 @@ export function findTowerSite(bot, center, near) {
     return sites.sort((a, b) => flat(a, ref) - flat(b, ref))[0] || null;
 }
 
-const HOSTILE = /^(zombie|husk|drowned|zombie_villager|spider|cave_spider|vindicator|evoker|ravager|witch|pillager|skeleton|stray|bogged|creeper|slime|phantom|vex|illusioner)$/;
-export const RANGED = /^(pillager|skeleton|stray|bogged|witch|evoker|illusioner)$/;
+const HOSTILE = /^(zombie|husk|drowned|zombie_villager|spider|cave_spider|vindicator|evoker|ravager|witch|pillager|skeleton|stray|bogged|parched|creeper|slime|phantom|vex|illusioner)$/;
+export const RANGED = /^(pillager|skeleton|stray|bogged|parched|witch|evoker|illusioner)$/;
 /** Hostile mobs inside the village, nearest to the center first. */
 export function villageThreats(bot, center, radius = VILLAGE_RADIUS) {
     return Object.values(bot.entities || {}).filter(e => e?.position && HOSTILE.test(e.name || '') && flat(e.position, center) <= radius

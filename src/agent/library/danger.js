@@ -2,7 +2,7 @@
 // Ranged mobs are recognised early and fled from; where pillagers (or other illagers) were seen, an area
 // becomes a no-go zone for a while (a patrol or an outpost), and the pathfinder routes around it.
 
-export const RANGED = new Set(['pillager', 'skeleton', 'stray', 'bogged', 'witch', 'blaze', 'ghast', 'evoker', 'illusioner']);
+export const RANGED = new Set(['pillager', 'skeleton', 'stray', 'bogged', 'parched', 'witch', 'blaze', 'ghast', 'evoker', 'illusioner']);
 export const ILLAGERS = new Set(['pillager', 'vindicator', 'evoker', 'ravager', 'illusioner']);
 const ZONE_RADIUS = 48;
 const PATROL_MS = 15 * 60000;

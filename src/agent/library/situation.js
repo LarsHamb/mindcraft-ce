@@ -3,7 +3,7 @@
 // with the live situation (about 60 tokens): health, hunger, time of day, danger, gear, food, place, deaths, people.
 import { getHome } from './protection.js';
 
-const HOSTILE = /^(zombie|husk|drowned|zombie_villager|spider|cave_spider|vindicator|evoker|ravager|witch|pillager|skeleton|stray|bogged|creeper|slime|magma_cube|phantom|vex|blaze|ghast|wither_skeleton|piglin_brute|hoglin|zoglin|warden|silverfish|endermite|breeze|guardian|elder_guardian|shulker)$/;
+const HOSTILE = /^(zombie|husk|drowned|zombie_villager|spider|cave_spider|vindicator|evoker|ravager|witch|pillager|skeleton|stray|bogged|parched|creeper|slime|magma_cube|phantom|vex|blaze|ghast|wither_skeleton|piglin_brute|hoglin|zoglin|warden|silverfish|endermite|breeze|guardian|elder_guardian|shulker)$/;
 const ARMOR = ['helmet', 'chestplate', 'leggings', 'boots'];
 
 /** Pickaxes with the share of durability left, best first: [{name, left}] (left 0..1). */

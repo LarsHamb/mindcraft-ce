@@ -12,6 +12,7 @@ import { installChatFilter } from './library/chat_filter.js';
 import { startVoiceBridge } from './library/voice_bridge.js';
 import { installSocial } from './library/social.js';
 import { installReputation } from './library/reputation.js';
+import { installLastSeen } from './library/last_seen.js';
 import { germanize } from './npc_phrases.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
 import { ActionManager } from './action_manager.js';
@@ -216,6 +217,7 @@ ${hint}` : translation);
         startVoiceBridge(this);
         // social awareness: joins, deaths, players coming near (settings.social_awareness, default on)
         if (settings.social_awareness !== false) { installSocial(this); installReputation(this); }
+        installLastSeen(this.bot);
 
         // optional daily character switch (settings.character_auto_switch, default off)
         const rotate = () => { try { const id = autoSwitch(this); if (id) announceSwitch(this, id); } catch (e) { console.warn('character switch:', e.message); } };

@@ -266,7 +266,7 @@ const modes_list = [
             // well armed it also takes on skeletons and creepers further away (shield, bow)
             const strong = settings.combat_style !== 'basic' && canFight(agent.bot, Object.values(agent.bot.entities).filter(e => mc.isHostile(e) && e.position.distanceTo(agent.bot.entity.position) < 20));
             const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity) && (entity.position.distanceTo(agent.bot.entity.position) <= 8
-                || (strong && /^(skeleton|stray|bogged|creeper|witch|phantom)$/.test(entity.name) && entity.position.distanceTo(agent.bot.entity.position) <= 16)), 16);
+                || (strong && /^(skeleton|stray|bogged|parched|creeper|witch|phantom)$/.test(entity.name) && entity.position.distanceTo(agent.bot.entity.position) <= 16)), 16);
             // only with a clear path: a mob behind stone made an endless fight/unstuck loop deep down (test 18.11.)
             if (enemy && await world.isClearPath(agent.bot, enemy)) {
                 say(agent, `Fighting ${enemy.name}!`);

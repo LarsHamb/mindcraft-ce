@@ -1,3 +1,4 @@
+import { lastSeen } from './last_seen.js';
 import * as mc from "../../utils/mcdata.js";
 import * as world from "./world.js";
 import { collectBlocks } from './mining.js';
@@ -1264,12 +1265,13 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
         log(bot, `${username} is not online. Keep the items (or put them in a chest) and continue your own plan.`);
         return false;
     }
-    let player = bot.players[username].entity
+    // out of sight is not offline: goToPlayer walks to where it last saw them
+    if (await goToPlayer(bot, username, 3) === false) return false;
+    let player = bot.players[username]?.entity;
     if (!player) {
-        log(bot, `Could not find ${username}.`);
+        log(bot, `Could not find ${username} nearby.`);
         return false;
     }
-    await goToPlayer(bot, username, 3);
     // if we are 2 below the player
     if (bot.entity.position.y < player.position.y - 1) {
         await goToPlayer(bot, username, 1);
@@ -1569,8 +1571,19 @@ export async function goToPlayer(bot, username, distance=3) {
     }
     let player = bot.players[username].entity
     if (!player) {
-        log(bot, `Could not find ${username}.`);
-        return false;
+        // online but out of sight: walk to where it last saw them and look again
+        const s = lastSeen(bot, username);
+        if (!s) {
+            log(bot, `${username} is online but out of sight and you do not know where they are. Ask them in chat where they are or to come to you; keep the items meanwhile.`);
+            return false;
+        }
+        log(bot, `${username} is online but out of sight; going to where you last saw them (${s.x}, ${s.y}, ${s.z}, ${Math.max(1, Math.round((Date.now() - s.at) / 60000))} min ago).`);
+        await goToPosition(bot, s.x, s.y, s.z, 4);
+        player = bot.players[username]?.entity;
+        if (!player) {
+            log(bot, `${username} is not there anymore. Ask them in chat where they are or to come to you; keep the items meanwhile (they are online).`);
+            return false;
+        }
     }
 
     distance = Math.max(distance, 0.5);
@@ -1579,6 +1592,7 @@ export async function goToPlayer(bot, username, distance=3) {
     await goToGoal(bot, goal, true);
 
     log(bot, `You have reached ${username}.`);
+    return true;
 }
 
 

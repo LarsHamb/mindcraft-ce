@@ -11,7 +11,7 @@ import settings from '../settings.js';
 import { inHomeHouse, inHomeVillage } from './protection.js';
 import { noteExperience, refusesTasks, trustOf, TRUST_REFUSE } from './player_memory.js';
 
-const HOSTILE_NEAR = /^(zombie|husk|drowned|zombie_villager|spider|cave_spider|vindicator|pillager|skeleton|stray|bogged|creeper|witch|slime|silverfish|breeze|phantom|piglin_brute|hoglin|zoglin|vex|evoker|ravager|wither_skeleton|blaze|warden|endermite)$/;
+const HOSTILE_NEAR = /^(zombie|husk|drowned|zombie_villager|spider|cave_spider|vindicator|pillager|skeleton|stray|bogged|parched|creeper|witch|slime|silverfish|breeze|phantom|piglin_brute|hoglin|zoglin|vex|evoker|ravager|wither_skeleton|blaze|warden|endermite)$/;
 // built village blocks; crops, torches and trees are left out (harvesting and wood cutting are normal play)
 const VILLAGE_BUILT = /(planks|_door|glass|_bed$|^bell$|cobblestone|stairs|slab|fence|_wall$|terracotta|smooth_sandstone|cut_sandstone|chiseled|hay_block|composter|barrel|chest|lantern|lectern|smoker|blast_furnace|cartography|fletching|grindstone|loom|stonecutter|brewing_stand|cauldron|smithing|wool|carpet|stripped|bookshelf|flower_pot|ladder)/;
 const VALUABLE = /^(diamond|emerald|netherite|iron_ingot|gold_ingot|diamond_|iron_|golden_apple|enchanted)/;
