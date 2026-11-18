@@ -183,10 +183,6 @@ export class Agent {
         const respondFunc = async (username, message) => {
             if (message === "") return;
             if (username === this.name) return;
-            // live 18.11.: console "say" lines ([Server] ...) became player tasks: only real players give tasks
-            const players = this.bot?.players || {};
-            const isPlayer = !!players[username] || Object.values(players).some(p => String(p?.displayName ?? '').replace(/§./g, '').trim() === username);
-            if (/^(Server|Rcon|CONSOLE)$/i.test(username) || /^[@\[]/.test(username) || (Object.keys(players).length && !isPlayer)) { console.log('ignoring chat from', username, '(no player)'); return; }
             if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) return;
             try {
                 if (ignore_messages.some((m) => message.startsWith(m))) return;
@@ -229,12 +225,20 @@ ${hint}` : translation);
         const rotateTimer = setInterval(rotate, 30 * 60000);
         this.bot.once('end', () => clearInterval(rotateTimer));
 
-        this.bot.on('whisper', respondFunc);
+        // live 18.11.: console "say" lines ([Server] ...) became player tasks. In-game chat counts only from real
+        // players; messages from the MindServer (system, ADMIN) do not come through here.
+        const fromPlayer = username => {
+            const players = this.bot?.players || {};
+            const isPlayer = !!players[username] || Object.values(players).some(p => String(p?.displayName ?? '').replace(/§./g, '').trim() === username);
+            if (/^(Server|Rcon|CONSOLE)$/i.test(username) || /^[@\[]/.test(username) || !isPlayer) { console.log('ignoring chat from', username, '(no player)'); return false; }
+            return true;
+        };
+        this.bot.on('whisper', (username, message) => { if (fromPlayer(username)) respondFunc(username, message); });
         
         this.bot.on('chat', (username, message) => {
             if (serverProxy.getNumOtherAgents() > 0) return;
             // only respond to open chat messages when there are no other agents
-            respondFunc(username, message);
+            if (fromPlayer(username)) respondFunc(username, message);
         });
 
         // Set up auto-eat
