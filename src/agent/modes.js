@@ -224,7 +224,7 @@ const modes_list = [
             const bot = agent.bot;
             agent.actions.progress?.observe(bot);
             // long walks and searches compute paths while standing (Boys 17.11.: 38 interruptions): give them longer
-            const slow = /search|goTo|recover|follow/i.test(agent.actions.currentActionLabel || '');
+            const slow = /search|goTo|recover|follow|village/i.test(agent.actions.currentActionLabel || '');
             const limit = (slow ? 45 : this.max_stuck_time) * 1000;
             if (!agent.actions.progress || agent.actions.progress.healthy(limit)) return;
             say(agent, 'I\'m stuck!');
