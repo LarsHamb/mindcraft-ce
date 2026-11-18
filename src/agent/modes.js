@@ -11,6 +11,7 @@ import pf from 'mineflayer-pathfinder';
 import { RANGED, ILLAGERS, markIllagers, dangerAt } from './library/danger.js';
 import * as stashLib from './library/stash.js';
 import { isNight } from './library/village.js';
+import { canFight } from './library/combat.js';
 
 async function say(agent, message) {
     agent.bot.modes.behavior_log += message + '\n';
@@ -190,6 +191,8 @@ const modes_list = [
             // skeletons are everywhere at night: flee from them only when close; illagers always
             const flee = ILLAGERS.has(closest.name) ? d <= 40 : closest.name === 'creeper' ? d <= 10 : d <= 20;
             if (!flee || Date.now() - this.lastFlee < 3000) return;
+            // well armed: stand and fight (self_defense), do not run from every skeleton (Lars, 18.11.)
+            if (settings.combat_style !== 'basic' && canFight(bot, near)) return;
             this.lastFlee = Date.now();
             say(agent, `Aaa! A ${closest.name}!`);
             journal('reflex', {kind: 'flee', mob: closest.name}, bot);
@@ -255,12 +258,20 @@ const modes_list = [
         on: true,
         active: false,
         update: async function (agent) {
-            const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity), 8);
-            if (enemy && await world.isClearPath(agent.bot, enemy)) {
+            // well armed it also takes on skeletons and creepers further away (shield, bow)
+            const strong = settings.combat_style !== 'basic' && canFight(agent.bot, Object.values(agent.bot.entities).filter(e => mc.isHostile(e) && e.position.distanceTo(agent.bot.entity.position) < 20));
+            const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity) && (entity.position.distanceTo(agent.bot.entity.position) <= 8
+                || (strong && /^(skeleton|stray|bogged|creeper|witch|phantom)$/.test(entity.name) && entity.position.distanceTo(agent.bot.entity.position) <= 16)), 16);
+            if (enemy && (strong || await world.isClearPath(agent.bot, enemy))) {
                 say(agent, `Fighting ${enemy.name}!`);
+                // Arena 18.11.: Task tool calls cancelled the fight mid-swing ("interrupted, health 20") and it died in
+                // full iron armor. Keep the emergency window open while fighting so Task actions wait.
+                agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, Date.now() + 5000);
+                const hold = setInterval(() => { agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, Date.now() + 3000); }, 1000);
                 execute(this, agent, async () => {
-                    await skills.defendSelf(agent.bot, 8);
-                });
+                    try { await skills.defendSelf(agent.bot, strong ? 16 : 8); }
+                    finally { clearInterval(hold); }
+                }).finally(() => { clearInterval(hold); agent.emergencyUntil = Math.min(agent.emergencyUntil || 0, Date.now() + 500); });
             }
         }
     },

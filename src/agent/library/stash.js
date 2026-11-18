@@ -50,8 +50,25 @@ export function stashSurplus(bot) {
         const tools = items.filter(i => kindOf(i.name) === kind).sort((a, b) => tier(a.name) - tier(b.name));
         for (const t of tools.slice(1)) out.push({name: t.name, count: t.count});
     }
+    // Lars, 18.11.: a base with chests. Bulk blocks and loot beyond what he works with go in too (full inventory)
+    for (const [re, keep] of BULK) {
+        const have = items.filter(i => re.test(i.name));
+        let total = have.reduce((n, i) => n + i.count, 0);
+        for (const i of have) {
+            if (total <= keep) break;
+            const n = Math.min(i.count, total - keep);
+            out.push({name: i.name, count: n}); total -= n;
+        }
+    }
     return out;
 }
+
+const BULK = [
+    [/^cobblestone$/, 32], [/^(cobbled_deepslate|andesite|diorite|granite|tuff|calcite|netherrack|gravel|sand|red_sand)$/, 0],
+    [/^(dirt|coarse_dirt)$/, 8], [/_log$/, 16], [/_planks$/, 16], [/^(rotten_flesh|bone|gunpowder|spider_eye|ink_sac|kelp)$/, 0],
+    [/^(raw_iron|raw_copper|raw_gold|copper_ingot)$/, 32], [/^(wheat_seeds|beetroot_seeds|pumpkin_seeds|melon_seeds)$/, 16],
+    [/_sapling$/, 4], [/^(white|.*)_wool$/, 3], [/^(lapis_lazuli|redstone|emerald|quartz|amethyst_shard)$/, 0],
+];
 
 /** What to take from the stash after a loss: food up to KEEP_FOOD and one tool of each kind that is missing. */
 export function stashNeeds(bot, chestItems) {
@@ -116,6 +133,24 @@ export async function makeStash(bot, agent) {
     return 'No free spot next to me for the stash chest. Move to open flat ground and try again.';
 }
 
+/** Place a chest next to the stash chest so they join into a double chest. */
+async function growStash(bot, pos) {
+    const have = () => bot.inventory.items().some(i => i.name === 'chest');
+    if (!have()) {
+        const planks = bot.inventory.items().filter(i => i.name.endsWith('_planks')).reduce((n, i) => n + i.count, 0);
+        if (planks < 8) return false;
+        await skills.craftRecipe(bot, 'chest', 1).catch(() => {});
+        if (!have()) return false;
+    }
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const p = pos.offset(dx, 0, dz);
+        const at = bot.blockAt(p), below = bot.blockAt(p.offset(0, -1, 0)), above = bot.blockAt(p.offset(0, 1, 0));
+        if (!at || at.boundingBox !== 'empty' || !below || below.boundingBox !== 'block' || above?.boundingBox !== 'empty') continue;
+        if (await skills.placeBlock(bot, 'chest', p.x, p.y, p.z).catch(() => false)) return true;
+    }
+    return false;
+}
+
 export async function storeInStash(bot, agent) {
     const surplus = stashSurplus(bot);
     if (!surplus.length) return {stored: [], note: `Nothing spare: I keep ${KEEP_FOOD} food and my best tool of each kind.`};
@@ -132,7 +167,15 @@ export async function storeInStash(bot, agent) {
             const item = bot.inventory.items().find(i => i.name === it.name);
             if (!item) continue;
             try { await s.container.deposit(item.type, null, Math.min(it.count, item.count)); stored.push(`${Math.min(it.count, item.count)} ${it.name}`); }
-            catch (e) { if (/full/i.test(String(e?.message))) break; }
+            catch (e) {
+                if (!/full/i.test(String(e?.message))) continue;
+                // full: put a second chest beside it (becomes a double chest) and go on once
+                if (s.grown || !await growStash(bot, s.pos)) { stored.push('(chest full)'); break; }
+                s.container.close();
+                const again = await openStash(bot, agent);
+                if (again.error) break;
+                s.container = again.container; s.grown = true;
+            }
         }
     } finally { s.container.close(); }
     return {stored, pos: s.pos};

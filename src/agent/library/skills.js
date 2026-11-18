@@ -2,6 +2,9 @@ import * as mc from "../../utils/mcdata.js";
 import * as world from "./world.js";
 import { collectBlocks } from './mining.js';
 import { breakRefusal, harvestRefusal, protectedAreaAt, isOwnBlock } from './protection.js';
+import { fight, equipShield, retreatAndEat } from './combat.js';
+import runtimeSettings from '../settings.js';
+const combatStyle = () => runtimeSettings.combat_style ?? settings.combat_style ?? 'smart';
 import { assertActionOwner, actionContext, onActionCleanup, cancellable } from '../action_context.js';
 import pf from 'mineflayer-pathfinder';
 import Vec3 from 'vec3';
@@ -463,6 +466,16 @@ export async function attackEntity(bot, entity, kill=true) {
         console.log('attacking mob...')
         await bot.attack(entity);
     }
+    else if (combatStyle() !== 'basic') {
+        await equipShield(bot);
+        const r = await fight(bot, entity);
+        if (r === 'interrupted') return false;
+        if (r === 'retreat') { log(bot, `Health low (${Math.round(bot.health)}/20): backed off from ${entity.name}. Eat and heal first.`); return false; }
+        if (r !== 'killed') { log(bot, `${entity.name} got away.`); return false; }
+        log(bot, `Successfully killed ${entity.name}.`);
+        await pickupNearbyItems(bot);
+        return true;
+    }
     else {
         bot.pvp.attack(entity);
         while (world.getNearbyEntities(bot, 24).includes(entity)) {
@@ -492,6 +505,28 @@ export async function defendSelf(bot, range=9) {
     bot.modes.pause('cowardice');
     let attacked = false;
     let enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), range);
+    if (combatStyle() !== 'basic') {
+        // Lars, 18.11.: fight like a player (combat.js): cooldown, critical hits, shield, creeper step-back, retreat to eat
+        let kills = 0, retreats = 0;
+        while (enemy && !bot.interrupt_code) {
+            await equipHighestAttack(bot);
+            await equipShield(bot);
+            const r = await fight(bot, enemy);
+            console.log(`fight ${enemy.name}: ${r} (health ${Math.round(bot.health)})`);
+            attacked = true;
+            if (r === 'killed') kills++;
+            if (r === 'interrupted') return false;
+            if (r === 'retreat') {
+                retreats++;
+                const near = Object.values(bot.entities).filter(e => mc.isHostile(e) && e.position.distanceTo(bot.entity.position) < 12);
+                await retreatAndEat(bot, near, () => eatBestFood(bot));
+                if (retreats >= 3) { log(bot, `Retreated ${retreats} times at low health: get away and heal before fighting again.`); return false; }
+            }
+            enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), range);
+        }
+        log(bot, attacked ? `Successfully defended self (${kills} killed).` : `No enemies nearby to defend self from.`);
+        return attacked;
+    }
     while (enemy) {
         await equipHighestAttack(bot);
         if (bot.entity.position.distanceTo(enemy.position) >= 4 && enemy.name !== 'creeper' && enemy.name !== 'phantom') {
@@ -1181,6 +1216,16 @@ export async function consume(bot, itemName="") {
     }
 }
 
+
+/** Eat the best food in the inventory (cooked first). Used by the fight routine when health is low. */
+export async function eatBestFood(bot) {
+    if (bot.food >= 20) return false;
+    const foods = bot.registry?.foodsByName || {};
+    const items = bot.inventory.items().filter(i => foods[i.name] && !/rotten_flesh|spider_eye|poisonous_potato|pufferfish|^chicken$/.test(i.name));
+    if (!items.length) return false;
+    items.sort((a, b) => (foods[b.name].foodPoints || 0) - (foods[a.name].foodPoints || 0));
+    return await consume(bot, items[0].name);
+}
 
 export async function giveToPlayer(bot, itemType, username, num=1) {
     assertActionOwner(bot);

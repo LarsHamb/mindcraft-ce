@@ -115,6 +115,7 @@ const settings = {
     "character_auto_switch": "off", // "daily": switch the bot's character once a day (profile.characters)
     "character_admins": ["HiImCheeZy"], // who may switch the character with !charakter <name>
     "voice_port": 0, // HTTP bridge for the Simple Voice Chat mod (npc/cheesy-voice); 0 = off
+    "combat_style": "smart", // "smart": cooldown, crits, shield, creeper step-back (combat.js); "basic": mineflayer-pvp
     "village_tower": false, // village tower mode (watchtower); off until climbing works on 26.3
     "meet_before_talk": false, // true: a player can talk to the bot only after meeting it (near it once, or in its home village)
 
