@@ -584,7 +584,9 @@ export async function collectBlockResult(bot, blockType, num=1, exclude=null) {
     const movements = new pf.Movements(bot);
     movements.dontCreateFlow = true;
     // prefer what it can reach: blocks high above (tree tops) cost much more than their distance
-    const effort = b => { const me = bot.entity.position; return b.position.distanceTo(me) + Math.max(0, b.position.y - me.y - 2) * 4; };
+    // sand test 18.11.: blocks under water (river and lake beds) are slow and often unreachable: dry ones first
+    const wet = b => /water/.test(bot.blockAt(b.position.offset(0, 1, 0))?.name || '');
+    const effort = b => { const me = bot.entity.position; return b.position.distanceTo(me) + Math.max(0, b.position.y - me.y - 2) * 4 + (wet(b) ? 24 : 0); };
     const result = await collectBlocks(bot, blockType, num, {
         find: predicate => world.getNearestBlocksWhere(bot, block => predicate(block) &&
             (!block.position || movements.safeToBreak(block) || block.name === 'obsidian'), 64, 128)

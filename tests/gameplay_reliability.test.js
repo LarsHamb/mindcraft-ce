@@ -191,7 +191,7 @@ test('temporarily skipped coordinates become available after cooldown or a chang
         const partial=await collectBlocks(bot,'oak_log',3,options);assert.equal(partial.status,'partial');
         setFailure(false);
         assert.equal((await collectBlocks(bot,'oak_log',1,options)).status,'blocked');
-        if(changed) blocks[0].stateId=8;else now+=30001;
+        if(changed) blocks[0].stateId=8;else now+=10*60000+1;
         assert.equal((await collectBlocks(bot,'oak_log',1,options)).status,'ok');
     }
 });

@@ -26,6 +26,7 @@ export function nextToLava(bot, block) {
 // targets in a row, or after this long without a new block.
 export const MAX_FAILS_IN_ROW = 3;
 export const MAX_NO_PROGRESS_MS = 120000;
+export const FAILED_TARGET_MS = 10 * 60000;
 
 export async function collectBlocks(bot, type, requested, {find, pickup, liquid, afterBreak, exclude = [], now = Date.now} = {}) {
     if (!Number.isSafeInteger(requested) || requested < 1) return toolResult('failed', 'Block count must be a positive integer.', 'bad_args');
@@ -36,7 +37,9 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
     failures.set(bot, failed);
     for (const [key, info] of failed) {
         const current=info.position&&bot.blockAt(info.position);
-        if (now()-info.at>30000 || (current&&(current.stateId??current.type)!==info.state)) failed.delete(key);
+        // sand test 18.11.: after 30 s the same three sand blocks under water were tried again for 12 minutes;
+        // an unreachable target now stays skipped for 10 minutes (unless the block changes)
+        if (now()-info.at>FAILED_TARGET_MS || (current&&(current.stateId??current.type)!==info.state)) failed.delete(key);
     }
     let broken = 0, attempts = 0, blocker = '';
     let failsInRow = 0, lastProgress = now();
@@ -118,7 +121,8 @@ export async function collectBlocks(bot, type, requested, {find, pickup, liquid,
             if (interrupt()) break;
             failsInRow++;
             blocker = `${type} at ${key}: ${error.message}`;
-            if (perTarget.get(key) >= 2) {
+            // no path or no progress is a clear answer: skip the target at once (other errors get a second try)
+            if (perTarget.get(key) >= 2 || /No path|made no progress|Took too long/i.test(error.message)) {
                 failed.set(key, {at: now(), reason: error.message,position:target.position,state:target.stateId??target.type});
                 report(`Cannot reach ${type} at ${key}; trying another target.`);
             }
