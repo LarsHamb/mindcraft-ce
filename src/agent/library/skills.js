@@ -1587,6 +1587,20 @@ export async function goToPlayer(bot, username, distance=3) {
     }
 
     distance = Math.max(distance, 0.5);
+    // glass test 18.11.: 16 glass were done in 6 minutes, then the way back led into a cave; from y 15 to the
+    // player at y 76 every try ended in "Took too long to decide path". Far away or deep below: surface first,
+    // then walk towards the player in legs of at most 40 blocks, then follow for the last part.
+    for (let leg = 0; leg < 12 && !bot.interrupt_code; leg++) {
+        player = bot.players[username]?.entity || player;
+        const me = bot.entity.position, there = player.position;
+        const far = Math.hypot(there.x - me.x, there.z - me.z);
+        const below = there.y - me.y > 8 && (bot.blockAt(me.offset(0, 1, 0))?.skyLight ?? 15) === 0;
+        if (below) { await goToSurface(bot); continue; }
+        if (far <= 40) break;
+        const k = 36 / far;
+        const x = Math.floor(me.x + (there.x - me.x) * k), z = Math.floor(me.z + (there.z - me.z) * k);
+        await goToGoal(bot, new pf.goals.GoalNearXZ(x, z, 3));
+    }
     const goal = new pf.goals.GoalFollow(player, distance);
 
     await goToGoal(bot, goal, true);
