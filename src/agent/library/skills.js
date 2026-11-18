@@ -453,6 +453,11 @@ export async function attackEntity(bot, entity, kill=true) {
         log(bot, `Not attacking ${entity.name}: villagers and golems are your neighbours.`);
         return false;
     }
+    // Lars, 18.11.: players are never attacked, not even ones who annoy him (he remembers it instead)
+    if (entity.type === 'player') {
+        log(bot, `Not attacking ${entity.username || 'a player'}: you never attack players. Remember what they did and tell them in chat.`);
+        return false;
+    }
     if (!mc.isHostile(entity) && entity.type !== 'player') {
         const area = protectedAreaAt(bot, entity.position);
         if (area) { log(bot, `Not attacking ${entity.name}: it is inside the protected area "${area.name || 'player base'}" (players' animals).`); return false; }

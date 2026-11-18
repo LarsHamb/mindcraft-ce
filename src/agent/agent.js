@@ -11,6 +11,7 @@ import { handleCharacterChat, autoSwitch, announceSwitch } from './library/chara
 import { installChatFilter } from './library/chat_filter.js';
 import { startVoiceBridge } from './library/voice_bridge.js';
 import { installSocial } from './library/social.js';
+import { installReputation } from './library/reputation.js';
 import { germanize } from './npc_phrases.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
 import { ActionManager } from './action_manager.js';
@@ -200,7 +201,10 @@ export class Agent {
                 }
                 else {
                     let translation = await handleEnglishTranslation(message);
-                    this.handleMessage(username, translation);
+                    // gifts, annoyances and manipulation per player (reputation.js): adds a short hint for Brain
+                    const hint = this.reputationChat?.(username, message) || '';
+                    this.handleMessage(username, hint ? `${translation}
+${hint}` : translation);
                 }
             } catch (error) {
                 console.error('Error handling message:', error);
@@ -211,7 +215,7 @@ export class Agent {
         // voice chat bridge for the server mod (settings.voice_port, default off)
         startVoiceBridge(this);
         // social awareness: joins, deaths, players coming near (settings.social_awareness, default on)
-        if (settings.social_awareness !== false) installSocial(this);
+        if (settings.social_awareness !== false) { installSocial(this); installReputation(this); }
 
         // optional daily character switch (settings.character_auto_switch, default off)
         const rotate = () => { try { const id = autoSwitch(this); if (id) announceSwitch(this, id); } catch (e) { console.warn('character switch:', e.message); } };

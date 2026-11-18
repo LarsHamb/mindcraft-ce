@@ -1,5 +1,5 @@
 import { journal } from '../journal.js';
-import { rememberPlayer } from '../library/player_memory.js';
+import { rememberPlayer, refusesTasks } from '../library/player_memory.js';
 import { randomUUID } from 'node:crypto';
 import { BrainAgent, brainTools } from './brain.js';
 import { validateArguments } from './structured.js';
@@ -146,6 +146,12 @@ export class AgentSystem {
             if(!Array.isArray(args.tools)||args.tools.some(name=>typeof name!=='string'||!available.has(name)))
                 throw new Error(`Tool grants require exact available names. Available: ${[...available].join(', ')}`);
         }
+        // Lars, 18.11.: at very low trust he turns down that player's tasks (trust comes back slowly, see player_memory.js)
+        const asker=this.playerRequest&&!['system','ADMIN',this.agent.name].includes(source)?source
+            :(typeof args.for_player==='string'?args.for_player.trim():'');
+        const admins=[...(settings.character_admins||[]),...(settings.protection_admins||[])];
+        if(asker&&!admins.includes(asker)&&refusesTasks(this.agent.name,asker))
+            return `Refused: your trust in ${asker} is very low because of what they did. Tell them so briefly and kindly in character; they can make up for it with a gift or an apology.`;
         // A correction while the same action runs is context, not a fresh task.
         if(this.activeTask&&!this.task.cancelJob&&!args.replace&&this.currentDirective&&near(this.currentDirective.objective,args.objective)) {
             this.queue.enqueue({source,message:[args.objective,args.briefing,args.constraints].filter(Boolean).join('\n'),type:'context'});
