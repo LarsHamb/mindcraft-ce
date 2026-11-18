@@ -69,7 +69,7 @@ async function illagerReflex(mode, agent, illagers) {
         ring = st.homeDist <= 48;
         journal('alarm', {mobs: illagers.length, near: illagers[0].name}, bot);
         const warn = /anja/i.test(currentCharacter(agent)?.id || '') ? 'Hilfe, Plünderer am Dorf! Alle schnell in die Häuser!'
-            : 'ALARM! Plünderer am Stützpunkt! Alle Truppen in Deckung, ich läute die Glocke!';
+            : 'Hmm! Plünderer am Dorf! Alle in die Häuser, Türen zu, ich läute die Glocke!';
         try { agent.openChat(warn); } catch {}
         agent.agentSystem?.wake?.('system', `Raid alarm: ${illagers.length} illager(s) near your village. ${st.armor >= 2 && st.weapon ? 'You are armed: defend the village (your reflex fights them).' : 'You have no armor: stay inside your house until they are gone, do not walk out to them.'}`);
     }

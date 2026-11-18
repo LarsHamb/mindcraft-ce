@@ -4,7 +4,7 @@
 //   never stand and trade shots in crossbow range.
 // - Without armor: flee ONCE far away (or into the house when the village is near), then leave that patrol alone
 //   for a few minutes instead of fleeing and coming back in a loop.
-// - A patrol or a raid near the home village: ring the village bell and warn in chat (the war minister's job).
+// - A patrol or a raid near the home village: ring the village bell and warn in chat (the villager's job).
 // Also the evening walk home (leave in time, the walk counted in) and the "no bunker in the wild" rule.
 import Vec3 from 'vec3';
 import { ILLAGERS } from './danger.js';

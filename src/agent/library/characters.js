@@ -1,4 +1,4 @@
-// Lars, 17.11.: CheesyNPC has several characters that take turns ("!charakter anja", "!charakter minister").
+// Lars, 17.11.: CheesyNPC has several characters that take turns ("!charakter anja", "!charakter dorfbewohner").
 // The profile holds the shared rules in brain_knowledge and each character in profile.characters:
 //   {id: {display, brain: [...], task_chat, guard, hello}}
 // Memory per player stays shared; only role and speech change. The current one is saved per bot
@@ -50,7 +50,7 @@ export function knowledgeFor(profile, name, field) {
     return shared;
 }
 
-/** Match a typed name ("anja", "Anja Momberger", "minister") to a character id. */
+/** Match a typed name ("anja", "Anja Momberger", "dorfbewohner") to a character id. */
 export function findCharacter(profile, text) {
     const t = String(text || '').trim().toLowerCase();
     if (!t) return null;

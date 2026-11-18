@@ -11,9 +11,9 @@ test('voice info follows the character: voice and role switch together', () => {
     rmSync(`./bots/${name}`, {recursive: true, force: true});
     const agent = {name, prompter: {profile}, bot: {entity: {position: {x: 1.25, y: 64, z: -3.5}}}};
     let v = voiceInfo(agent);
-    assert.equal(v.character, 'minister');
-    assert.equal(v.voice, 'Charon');
-    assert.match(v.persona, /Kriegsminister/);
+    assert.equal(v.character, 'dorfbewohner');
+    assert.equal(v.voice, 'Algenib');
+    assert.match(v.persona, /Dorfbewohner/);
     assert.deepEqual(v.pos, [1.3, 64, -3.5]);
     setCharacter(agent, 'anja');
     v = voiceInfo(agent);

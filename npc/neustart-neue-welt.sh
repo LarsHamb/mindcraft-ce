@@ -63,6 +63,8 @@ if os.path.exists(p):
     json.dump(walk(d), open(p, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     print('memory-by-character.json: Orte entfernt')
 PY
+# old character self-descriptions (the war minister, replaced by the villager on 18.11.)
+python3 $N/charakter-aufraeumen.py "$B" $N/cheesynpc.json
 echo "behalten: $(cd "$B" && ls players.json tips.json character.json 2>/dev/null | tr '\n' ' ')"
 
 # 3. Dorf

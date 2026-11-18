@@ -1,4 +1,4 @@
-// Lars, 17.11.: CheesyNPC lives in a village ("Dorf-Kriegsminister"): he moves into a free bed, sleeps there
+// Lars, 17.11.: CheesyNPC lives in a village (since 18.11. as the villager Hmmbert): he moves into a free bed, sleeps there
 // at night and keeps the village nice (harvest and replant its fields, torches, fill holes, own chest).
 // Pure helpers here (testable); the tool is commands/tools/village.js.
 import Vec3 from 'vec3';

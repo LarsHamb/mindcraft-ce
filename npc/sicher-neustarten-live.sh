@@ -16,7 +16,7 @@ try:
     lines = open(sys.argv[1], errors="replace").read().splitlines()[-3000:]
 except OSError:
     print(0); sys.exit()
-# his own lines: the account name and every character's nickname (Styled Nicknames, e.g. "Kriegsminister Hmmbert")
+# his own lines: the account name and every character's nickname (Styled Nicknames, e.g. "Hmmbert der Dorfbewohner")
 import json
 own = {"CheesyNPC"}
 try:
