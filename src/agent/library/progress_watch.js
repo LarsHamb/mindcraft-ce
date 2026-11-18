@@ -3,6 +3,7 @@
 // surface, home to the village, or fetch wood.
 import { journal, recentJournal } from '../journal.js';
 import { getHome } from './protection.js';
+import { noteLesson } from './tips.js';
 
 export const WINDOW_MS = 10 * 60000;
 const SAMPLE_MS = 60000;
@@ -57,6 +58,7 @@ export function installProgressWatch(agent) {
             samples = [];
             const what = fallbackFor(bot);
             journal('watchdog', {fallback: what, action: agent.actions?.currentActionLabel || null}, bot);
+            try { noteLesson(agent.name, 'Wenn eine Sache lange nicht klappt: frueh aufgeben und einen kleinen sicheren Schritt waehlen'); } catch {}
             console.log(`Progress watch: 10 minutes without progress, stopping everything; fallback: ${what}`);
             try { agent.agentSystem?.cancelTask?.(); } catch {}
             try { await agent.actions?.stop?.(); } catch {}

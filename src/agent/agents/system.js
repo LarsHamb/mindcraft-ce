@@ -16,7 +16,7 @@ const near = (a,b) => {
     return x.size&&y.size?[...x].filter(w=>y.has(w)).length/Math.max(x.size,y.size)>=0.8:a===b;
 };
 // Internal planner/tool text never goes to the chat: tool names, limits, identifiers, brackets.
-const INTERNAL=/(stay|goToSurface|goToCoordinates|goToRememberedPlace|collectBlocks|craftRecipe|searchForBlock|move_in|village|stash|digStairs|buildShelter|placeHere|tool|Tool|Limit|limit|blockiert|blocked|cancelled|Pathfind\w*)|[a-z][A-Z]\w*|_[a-z]|\(.*\)/;
+const INTERNAL=/\b(stay|goToSurface|goToCoordinates|goToRememberedPlace|collectBlocks|craftRecipe|searchForBlock|move_in|village|stash|digStairs|buildShelter|placeHere|tool|Tool|Limit|limit|blockiert|blocked|cancelled|Pathfind\w*)\b|[a-z][A-Z]\w*|_[a-z]|\(.*\)/;
 export function chatSafe(text) {
     const first=String(text||'').replace(/\s+/g,' ').trim().split(/(?<=[.!?])\s/)[0].slice(0,140);
     return !first||INTERNAL.test(first)?'Das klappt gerade nicht, ich versuche es anders.':first;

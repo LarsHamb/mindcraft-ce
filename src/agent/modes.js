@@ -298,6 +298,32 @@ const modes_list = [
         }
     },
     {
+        // Lars, 18.11.: "Er ist immer noch nicht im Dorf". Without a home, joining the known village comes first: by
+        // day, when no player job runs and nothing attacks, he walks there himself (village move_in) every few minutes.
+        name: 'move_to_village',
+        description: 'Without a home, walk to the known village and move in by day.',
+        interrupts: ['all'],
+        on: true,
+        active: false,
+        last: 0,
+        update: async function (agent) {
+            const bot = agent.bot, hint = settings.village_hint;
+            if (!hint || getHome(bot)?.bed || getHome(bot)?.bell || !bot.entity || Date.now() - this.last < 4 * 60000) return;
+            const t = bot.time?.timeOfDay;
+            if (!Number.isFinite(t) || t > 9000) return;
+            if (bot.health < 10 || (agent.emergencyUntil || 0) > Date.now()) return;
+            if (agent.agentSystem?.currentDirective?.forPlayer) return;
+            const me = bot.entity.position;
+            if (Object.values(bot.entities).some(e => mc.isHostile(e) && e.position.distanceTo(me) < 12)) return;
+            this.last = Date.now();
+            execute(this, agent, async () => {
+                const { villageMoveIn } = await import('./commands/tools/village.js');
+                const r = await villageMoveIn(agent);
+                skills.log(bot, `Moving to the village: ${r?.text || r}`);
+            });
+        }
+    },
+    {
         // Lars, 18.11.: killed by an enderman. Never look an enderman in the eyes: turn the head away.
         name: 'enderman_gaze',
         description: 'Look away from endermen so they do not get angry.',

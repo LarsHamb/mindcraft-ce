@@ -38,6 +38,8 @@ async function walkFar(bot, target) {
     return Math.hypot(target.x - bot.entity.position.x, target.z - bot.entity.position.z) <= 12;
 }
 
+export async function villageMoveIn(agent) { return await moveIn(agent); }
+
 async function moveIn(agent) {
     const bot = agent.bot;
     let v = findVillage(bot);
@@ -82,6 +84,8 @@ async function moveIn(agent) {
     if (!await skills.goToPosition(bot, bed.x, bed.y, bed.z, 2))
         return toolResult('failed', `Could not reach the free bed at ${fmt(bed)}.`, 'move_failed');
     setHome(bot, {bell: {x: center.x, y: center.y, z: center.z}, bed: {x: bed.x, y: bed.y, z: bed.z}, radius: VILLAGE_RADIUS, sure: pick.sure});
+    // live 18.11.: he respawned 200 blocks away again and again. Using the bed by day sets the respawn point here.
+    if (!isNight(bot)) { try { const b = bot.blockAt(bed); if (b && /_bed$/.test(b.name)) await bot.activateBlock(b); } catch {} }
     agent.memory_bank?.rememberPlace?.('zuhause', bed.x, bed.y, bed.z);
     agent.memory_bank?.rememberPlace?.('dorf', center.x, center.y, center.z);
     let chest = '';

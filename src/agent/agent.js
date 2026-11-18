@@ -14,6 +14,7 @@ import { installSocial } from './library/social.js';
 import { installReputation } from './library/reputation.js';
 import { installLastSeen } from './library/last_seen.js';
 import { installProgressWatch } from './library/progress_watch.js';
+import { handleTipChat, lessonForDeath, noteLesson } from './library/tips.js';
 import { germanize } from './npc_phrases.js';
 import { containsCommand, commandExists, executeCommand, truncCommandMessage, isAction, blacklistCommands } from './commands/index.js';
 import { ActionManager } from './action_manager.js';
@@ -192,6 +193,8 @@ export class Agent {
                 // meet_before_talk (default off): strangers are ignored until they met him or found his village
                 // !charakter <name> (HiImCheeZy): switch character, handled locally
                 if (this.bot && handleCharacterChat(this, username, message)) return;
+                // tips: only HiImCheeZy and his whitelist teach rules; handled locally (tips.js)
+                if (this.bot && handleTipChat(this, username, message)) return;
                 if (this.bot && ignoreUnmet(this.bot, username)) { console.log(this.name, 'ignores', username, '(not met yet)'); return; }
 
                 this.shut_up = false;
@@ -549,6 +552,8 @@ ${hint}` : translation);
             if (jsonMsg.translate && jsonMsg.translate.startsWith('death') && message.startsWith(this.name)) {
                 console.log('Agent died: ', message);
                 journal('death', {message}, this.bot);
+                // own lessons from repeated mistakes (tips.js): counted, shown to Brain from the second time
+                try { const l = lessonForDeath(message); if (l) noteLesson(this.name, l); } catch {}
                 // deaths in a row (Boys 17.11.: 30 deaths in one night): recover_items digs in instead of walking out
                 this.recentDeaths = [...(this.recentDeaths || []).filter(t => Date.now() - t < 10 * 60000), Date.now()];
                 let death_pos = this.bot.entity.position;

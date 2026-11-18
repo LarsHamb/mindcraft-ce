@@ -9,6 +9,7 @@ import { getCommand } from '../agent/commands/index.js';
 import settings from '../agent/settings.js';
 import { waitForPlayers, realPlayersOnline } from '../agent/player_gate.js';
 import { playerNotes } from '../agent/library/player_memory.js';
+import { tipsPrompt } from '../agent/library/tips.js';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -325,7 +326,9 @@ export class Prompter {
             // what it knows about the players who are online (player memory)
             const known = role === 'brain' ? playerNotes(this.agent.name, realPlayersOnline(this.agent.bot)) : '';
             const people = known ? `\nPLAYERS ONLINE, WHAT YOU KNOW ABOUT THEM:\n${known}` : '';
-            const state = (await this.replaceStrings('CURRENT STATE (fresh, takes precedence over older observations):\n$STATS\n$INVENTORY' + memory, [])) + people;
+            // Lars, 18.11.: rules taught by HiImCheeZy and his whitelist, then repeated own lessons (tips.js)
+            const taught = role === 'brain' || role === 'task' ? tipsPrompt(this.agent.name) : '';
+            const state = (await this.replaceStrings('CURRENT STATE (fresh, takes precedence over older observations):\n$STATS\n$INVENTORY' + memory, [])) + people + (taught ? `\n${taught}` : '');
             requestMessages = [...messages, {role:'user',content:state}];
         }
         if (epoch !== this.cancelEpoch || roleEpoch !== (this.roleEpochs.get(role) || 0)) throw new Error('Request cancelled');
