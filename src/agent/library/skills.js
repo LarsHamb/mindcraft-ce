@@ -1468,6 +1468,17 @@ export async function goToPosition(bot, x, y, z, min_distance=2) {
     
     const progressInterval = setInterval(checkDigProgress, 1000);
     const unregister = onActionCleanup(bot, () => clearInterval(progressInterval));
+
+    // live 18.11.: 60+ blocks through taiga trees, the glass test back out of a cave: one long path does not get
+    // planned or followed on 26.3. Far targets are walked in legs of about 36 blocks first.
+    for (let leg = 0; leg < 30 && !bot.interrupt_code; leg++) {
+        const me = bot.entity.position, far = Math.hypot(x - me.x, z - me.z);
+        if (far <= 48) break;
+        const k = 36 / far;
+        try { await goToGoal(bot, new pf.goals.GoalNearXZ(Math.floor(me.x + (x - me.x) * k), Math.floor(me.z + (z - me.z) * k), 3)); }
+        catch (e) { if (bot.interrupt_code) break; }
+        if (bot.entity.position.distanceTo(me) < 3) break; // this leg did not work: try the whole path below
+    }
     
     try {
         await goToGoal(bot, new pf.goals.GoalNear(x, y, z, min_distance));
