@@ -202,7 +202,7 @@ export function installReputation(agent) {
             if (source?.type === 'player' && source.username && source.username !== bot.username)
                 return source.position?.distanceTo(me) > 6 ? bad(source.username, 'schoss auf dich', -1, 'just shot at you.')
                     : bad(source.username, 'schlug dich', -1, 'just hit you.');
-            if (source) return; // a mob or something else
+            if (source) { source.__angryUntil = Date.now() + 30000; return; } // a mob: fight back even if it is neutral
             const mobs = Object.values(bot.entities || {}).filter(e => e?.position && e.type !== 'player' && HOSTILE_NEAR.test(e.name || ''));
             // older servers: a player swung right now within reach and no monster can have done it
             if (!mobs.some(m => m.position.distanceTo(me) < 5)) {

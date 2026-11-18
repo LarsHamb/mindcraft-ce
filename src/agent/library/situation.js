@@ -59,6 +59,8 @@ export function situation(agent) {
     // test 18.11.: both pickaxes wore out deep down and it was stuck at y 11 for 17 minutes
     const picks = pickaxes(bot);
     parts.push(picks.length ? `Spitzhacken: ${picks.map(p => `${p.name.replace('_pickaxe', '')} ${Math.round(p.left * 100)}%`).join(', ')}` : 'keine Spitzhacke');
+    // Lars, 18.11.: after a death gear up by a fixed plan instead of searching around
+    if (!picks.length && !best) parts.push('Ausruestung fehlt: Plan 1) eigene Kiste im Dorf (stash take) 2) 4 Staemme: Planken, Stoecke, Werkbank, Holzspitzhacke 3) 3 Bruchstein: Steinspitzhacke und Steinschwert 4) Eisen abbauen und schmelzen: Eisenspitzhacke, dann Ruestung');
     const free = freeSlots(bot);
     if (free <= 3) parts.push(`Inventar fast voll (${free} frei): erst einlagern (stash store)`);
 

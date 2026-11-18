@@ -1,4 +1,5 @@
 import { lastSeen } from './last_seen.js';
+import { journal } from '../journal.js';
 import * as mc from "../../utils/mcdata.js";
 import * as world from "./world.js";
 import { collectBlocks } from './mining.js';
@@ -526,7 +527,7 @@ export async function defendSelf(bot, range=9) {
             console.log(`fight ${enemy.name}: ${r} (health ${Math.round(bot.health)})`);
             if (r === 'gone') (bot.__ignoreMobs ||= new Map()).set(enemy.id, Date.now() + 60000);
             attacked = true;
-            if (r === 'killed') kills++;
+            if (r === 'killed') { kills++; journal('kill', {mob: enemy.name}, bot); }
             if (r === 'interrupted') return false;
             if (r === 'retreat') {
                 retreats++;

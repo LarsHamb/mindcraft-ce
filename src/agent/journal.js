@@ -12,4 +12,10 @@ export function journal(type, data = {}, bot = null) {
     const line = {at: Date.now(), type, ...(p ? {pos: [Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)]} : {}), ...data};
     for (const k of Object.keys(line)) if (typeof line[k] === 'string' && line[k].length > 200) line[k] = line[k].slice(0, 200);
     try { appendFileSync(`./bots/${botName}/journal.jsonl`, JSON.stringify(line) + '\n'); } catch {}
+    recent.push(line);
+    if (recent.length > 2000) recent.splice(0, recent.length - 1500);
 }
+
+// the last entries in memory (day report, progress watch); not persisted
+const recent = [];
+export const recentJournal = (sinceMs = 20 * 60000, now = Date.now()) => recent.filter(e => now - e.at <= sinceMs);

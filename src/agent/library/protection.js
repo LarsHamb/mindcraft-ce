@@ -321,6 +321,9 @@ function guardMovements(bot, movements) {
     if (typeof movements.maxDropDown === 'number') movements.maxDropDown = Math.min(movements.maxDropDown, 3);
     // Boys 17.11.: 1x1 towering on 26.3 failed in shafts (endless jumping, "standing on air"); dig stairs up instead
     movements.allow1by1towers = false;
+    // Lars, 18.11.: "Ich brauche Luft!" several times a day - paths through water cost much more, so it walks
+    // around rivers and lakes (or bridges them) instead of swimming
+    movements.liquidCost = Math.max(movements.liquidCost || 1, 8);
     movements.__protected = true;
     return movements;
 }

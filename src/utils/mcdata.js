@@ -207,6 +207,9 @@ export function isHuntable(mob) {
 
 export function isHostile(mob) {
     if (!mob || !mob.name) return false;
+    // Lars, 18.11.: an enderman killed him after he looked at / fought it. Neutral mobs are left alone unless
+    // they just hurt him (reputation.js marks the attacker as angry for 30 s).
+    if (/^(enderman|zombified_piglin|piglin|wolf|bee|llama|trader_llama|polar_bear|panda|dolphin|goat)$/.test(mob.name) && !((mob.__angryUntil || 0) > Date.now())) return false;
     return  (mob.type === 'mob' || mob.type === 'hostile') && mob.name !== 'iron_golem' && mob.name !== 'snow_golem';
 }
 

@@ -29,8 +29,6 @@
         "!checkBlueprintLevel",
         "!getBlueprint",
         "!getBlueprintLevel",
-        "!tradeWithVillager",
-        "!showVillagerTrades",
         "!lookAtPlayer",
         "!lookAtPosition",
         "!startConversation",

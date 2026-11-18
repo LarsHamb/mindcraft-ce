@@ -2,6 +2,7 @@
 // speaking with Gemini Live; this small HTTP bridge tells it where the bot is and which character (voice, role)
 // it plays, and turns spoken requests into chat requests of that player (same rules, memory and filters).
 // settings.voice_port: 0 = off (default).
+import { situation } from './situation.js';
 import http from 'node:http';
 import settings from '../settings.js';
 import { currentCharacter } from './characters.js';
@@ -26,7 +27,12 @@ export function voiceStatus(agent) {
     const goal = agent.agentSystem?.lastDirective?.goal || agent.agentSystem?.task?.goal;
     if (goal) parts.push(`Aufgabe: ${String(goal).slice(0, 160)}`);
     const bot = agent.bot;
-    if (bot?.entity) parts.push(`Leben ${Math.round(bot.health)}/20, Hunger ${bot.food}/20`);
+    // Lars, 18.11.: "wo bist du / wie geht's dir / was machst du" - place, health, gear and goal, like in chat
+    if (bot?.entity?.position) {
+        const p = bot.entity.position;
+        parts.push(`Ort ${Math.round(p.x)} ${Math.round(p.y)} ${Math.round(p.z)}`);
+        try { parts.push(situation(agent)); } catch { parts.push(`Leben ${Math.round(bot.health)}/20, Hunger ${bot.food}/20`); }
+    }
     return parts.join('; ') || 'Gerade nichts Besonderes, ich mache mit meinem eigenen Plan weiter.';
 }
 

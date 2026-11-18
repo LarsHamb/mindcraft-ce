@@ -6,7 +6,7 @@ import convoManager from './conversation.js';
 import { protectedAreaAt, dueRestores, finishRestore, harvestRefusal, getHome } from './library/protection.js';
 import { nextToLava } from './library/mining.js';
 import Vec3 from 'vec3';
-import { journal } from './journal.js';
+import { journal, recentJournal } from './journal.js';
 import pf from 'mineflayer-pathfinder';
 import { RANGED, ILLAGERS, markIllagers, dangerAt } from './library/danger.js';
 import * as stashLib from './library/stash.js';
@@ -43,6 +43,18 @@ export async function digIn(bot) {
     if (!fill) return false;
     const top = feet.offset(0, 2, 0);
     try { return await skills.placeBlock(bot, fill.name, top.x, top.y, top.z, 'side'); } catch { return false; }
+}
+
+// Facts of the last Minecraft day from the journal, for the evening report: finished tasks, kills, deaths, gifts.
+export function dayFacts(entries) {
+    const done = entries.filter(e => e.type === 'task_end' && e.outcome === 'done').map(e => String(e.objective || '').slice(0, 60));
+    const kills = entries.filter(e => e.type === 'kill').map(e => e.mob);
+    const deaths = entries.filter(e => e.type === 'death').length;
+    const parts = [];
+    if (done.length) parts.push(`done: ${[...new Set(done)].slice(-4).join('; ')}`);
+    if (kills.length) { const c = {}; for (const k of kills) c[k] = (c[k] || 0) + 1; parts.push(`defeated: ${Object.entries(c).map(([k, n]) => `${n} ${k}`).join(', ')}`); }
+    if (deaths) parts.push(`died ${deaths} time(s)`);
+    return parts.join(' | ');
 }
 
 const modes_list = [
@@ -286,6 +298,29 @@ const modes_list = [
         }
     },
     {
+        // Lars, 18.11.: killed by an enderman. Never look an enderman in the eyes: turn the head away.
+        name: 'enderman_gaze',
+        description: 'Look away from endermen so they do not get angry.',
+        interrupts: [],
+        on: true,
+        active: false,
+        update: async function (agent) {
+            const bot = agent.bot, me = bot.entity?.position;
+            if (!me) return;
+            const eye = me.offset(0, bot.entity.height ?? 1.62, 0);
+            for (const e of Object.values(bot.entities || {})) {
+                if (e?.name !== 'enderman' || !e.position || e.position.distanceTo(me) > 48) continue;
+                const head = e.position.offset(0, 2.6, 0), to = head.minus(eye).normalize();
+                const yaw = bot.entity.yaw, pitch = bot.entity.pitch;
+                const look = {x: -Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: -Math.cos(yaw) * Math.cos(pitch)};
+                if (look.x * to.x + look.y * to.y + look.z * to.z > 0.93) {
+                    await bot.look(yaw + Math.PI / 2, -0.5, true).catch(() => {});
+                    return;
+                }
+            }
+        }
+    },
+    {
         name: 'hunting',
         description: 'Hunt nearby animals when idle.',
         interrupts: ['action:followPlayer'],
@@ -440,6 +475,7 @@ const modes_list = [
         active: false,
         lastFood: 0,
         duskDay: -1,
+        dawnDay: -1,
         update: async function (agent) {
             const bot = agent.bot;
             const wake = msg => agent.agentSystem?.wake?.('system', msg);
@@ -461,6 +497,21 @@ const modes_list = [
                 else if (bed && far > 80) wake(`Night falls in about a minute. Your village bed is ${far} blocks away, too far to reach before dark without armor: build a shelter here (buildShelter) or dig in, and keep the player's job for the morning.`);
                 else if (bed) wake('Night falls in about a minute. Go home to your village bed and sleep there (village sleep). Fighting creepers at night in the open is not a plan.');
                 else wake('Night falls in about a minute. Go to your shelter, or build one now with buildShelter, or dig in; put torches around it. Do not stay in the open. If you have a bed at your base, sleep in it (goToBed): that also sets your respawn point there.');
+                // Lars, 18.11.: a short day report in character, once per day, when someone is there to hear it
+                const people = Object.keys(bot.players || {}).filter(n => n !== bot.username);
+                if (people.length && settings.day_report !== false) {
+                    const facts = dayFacts(recentJournal(20 * 60000));
+                    if (facts) wake(`Day report: say ONE short line in character to the players about your day (no numbers lists, no tool names): ${facts}`);
+                }
+            }
+            // Lars, 18.11.: the bed is the fixed point. A night in a wild shelter: in the morning leave it and go home.
+            if (Number.isFinite(t) && t >= 23500 || (Number.isFinite(t) && t < 1500)) {
+                if (day !== this.dawnDay) {
+                    this.dawnDay = day;
+                    const ref = getHome(bot)?.bed || getHome(bot)?.bell, me = bot.entity?.position;
+                    if (ref && me && Math.hypot(me.x - ref.x, me.z - ref.z) > 24)
+                        wake('Morning. You spent the night away from home: leave the shelter now and go home to the village (goToRememberedPlace zuhause or dorf), store loot in your chest there, then continue.');
+                }
             }
         }
     },
