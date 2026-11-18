@@ -57,6 +57,9 @@ async function sleep(agent) {
     // the dusk hint comes about a minute early: wait for the night instead of giving up
     for (let i = 0; i < 100 && !isNight(bot) && !bot.interrupt_code && bot.time?.timeOfDay >= 11000; i++) await new Promise(r => setTimeout(r, 1000));
     if (!isNight(bot)) return toolResult('blocked', `Not night yet (time ${bot.time?.timeOfDay}). Sleep after dusk; work until then.`, 'not_night');
+    // test 18.11.: when the night does not pass he went to bed 37 times in 20 minutes. Once per night is enough.
+    if ((agent.__sleptAt || bot.__sleptAt) && Date.now() - Math.max(agent.__sleptAt || 0, bot.__sleptAt || 0) < 5 * 60000)
+        return toolResult('blocked', 'I already lay down this night and it did not pass (others awake or time stands still). Do not try to sleep again tonight: stay safe in the house, keep watch (village watch) or do indoor work until morning.', 'night_continues');
     let bed = v3(home.bed);
     if (bot.entity.position.distanceTo(bed) > 3 && !await skills.goToPosition(bot, bed.x, bed.y, bed.z, 2))
         return toolResult('failed', `Could not reach my bed at ${fmt(bed)}.`, 'move_failed');
@@ -89,6 +92,8 @@ async function sleep(agent) {
             return toolResult(w.outcome || 'ok', `Respawn point set at my bed ${fmt(bed)}. Not enough players asleep, so I got up and kept watch: ${w.message || w.reason || ''}${moved}`);
         }
     }
+    agent.__sleptAt = bot.__sleptAt = Date.now();
+    if (isNight(bot)) return toolResult('ok', `Lay in my bed at ${fmt(bed)} (respawn point set), but the night goes on. Do not sleep again tonight: stay in the house or keep watch until morning.${moved}`);
     return toolResult('ok', `Slept in my bed at ${fmt(bed)}; the respawn point is here.${moved}`);
 }
 

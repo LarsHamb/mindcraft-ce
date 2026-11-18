@@ -1,7 +1,7 @@
 import * as mc from "../../utils/mcdata.js";
 import * as world from "./world.js";
 import { collectBlocks } from './mining.js';
-import { breakRefusal, harvestRefusal, protectedAreaAt, isOwnBlock } from './protection.js';
+import { breakRefusal, harvestRefusal, protectedAreaAt, isOwnBlock, getHome } from './protection.js';
 import { fight, equipShield, retreatAndEat } from './combat.js';
 import runtimeSettings from '../settings.js';
 const combatStyle = () => runtimeSettings.combat_style ?? settings.combat_style ?? 'smart';
@@ -1812,6 +1812,16 @@ export async function goToBed(bot) {
      * @example
      * await skills.goToBed(bot);
      **/
+    // test 18.11.: 37 trips to bed in one endless night. Once per night; prefer the own village bed.
+    const night = () => { const t = bot.time?.timeOfDay; return (Number.isFinite(t) && t >= 12542 && t <= 23460) || !!bot.thunderState; };
+    if (bot.__sleptAt && Date.now() - bot.__sleptAt < 5 * 60000 && night()) {
+        log(bot, `Already lay down this night and it did not pass (others are awake). Do not try again tonight: stay inside or keep watch until morning.`);
+        return false;
+    }
+    const home = getHome(bot);
+    if (home?.bed && bot.entity.position.distanceTo(new Vec3(home.bed.x, home.bed.y, home.bed.z)) < 48) {
+        await goToPosition(bot, home.bed.x, home.bed.y, home.bed.z);
+    }
     const beds = bot.findBlocks({
         matching: (block) => {
             return block.name.includes('bed');
@@ -1827,12 +1837,13 @@ export async function goToBed(bot) {
     await goToPosition(bot, loc.x, loc.y, loc.z);
     const bed = bot.blockAt(loc);
     await bot.sleep(bed);
+    bot.__sleptAt = Date.now();
     log(bot, `You are in bed.`);
     bot.modes.pause('unstuck');
     while (bot.isSleeping) {
         await new Promise(resolve => setTimeout(resolve, 500));
     }
-    log(bot, `You have woken up.`);
+    log(bot, night() ? `You got up, but the night goes on (others are awake). Do not sleep again tonight: stay inside or keep watch.` : `You have woken up.`);
     return true;
 }
 

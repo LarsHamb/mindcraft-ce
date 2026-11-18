@@ -173,6 +173,7 @@ export function bowPitch(h, dy, speed = ARROW_SPEED) {
 }
 
 export function hasBow(bot) {
+    if (bot.__bowBroken) return false;
     const items = bot.inventory.items();
     return items.some(i => i.name === 'bow') && items.some(i => /^(arrow|tipped_arrow|spectral_arrow)$/.test(i.name));
 }
@@ -195,11 +196,17 @@ export async function shootBow(bot, target) {
         return true;
     };
     if (!aim()) return false;
+    const arrows = () => bot.inventory.items().filter(i => /arrow$/.test(i.name)).reduce((n, i) => n + i.count, 0);
+    const before = arrows();
     bot.activateItem();
     for (let i = 0; i < 22; i++) { await sleep(50); if (!bot.entities[target.id]) break; aim(); }
     aim();
     bot.deactivateItem();
-    await sleep(150);
+    await sleep(300);
+    // 26.3 test 18.11.: the server saw draw and release but no arrow left the bow. Two dry shots in a row turn
+    // the bow off for this session, so fights go on with the sword instead of standing there drawing.
+    if (arrows() >= before) { bot.__dryShots = (bot.__dryShots || 0) + 1; if (bot.__dryShots >= 2) { bot.__bowBroken = true; console.log('bow: no arrows leave the bow, using the sword'); } }
+    else bot.__dryShots = 0;
     return true;
 }
 

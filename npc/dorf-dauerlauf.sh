@@ -22,7 +22,7 @@ for f in memory.json home.json built_areas.json own_blocks.json restore.json pla
 docker rm -f tester >/dev/null 2>&1
 docker run -d --name tester --network karimnet -v $L/tester.cjs:/app/tester.cjs:ro -e MSGS="hallo" -e STAY=1 mindcraft-ce26 node /app/tester.cjs >/dev/null
 sleep 8; ./rcon26.sh "gamemode spectator Tester" >/dev/null
-./rcon26.sh "difficulty normal" "time set 1000" "gamemode survival MindCE" "clear MindCE" "effect clear MindCE" "spreadplayers 1560 -1560 0 10 false MindCE" >/dev/null
+./rcon26.sh "difficulty normal" "gamerule minecraft:advance_time true" "time set 1000" "gamemode survival MindCE" "clear MindCE" "effect clear MindCE" "spreadplayers 1560 -1560 0 10 false MindCE" >/dev/null
 sleep 5
 RCON=./rcon26.sh /home/lars/mindcraft-ce/npc/zum-dorf.sh MindCE kit | tee $E
 ./rcon26.sh "spawnpoint MindCE 1675 66 -1630" >/dev/null
