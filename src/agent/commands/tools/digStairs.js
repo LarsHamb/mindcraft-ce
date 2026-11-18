@@ -1,3 +1,4 @@
+import { pickaxes } from '../../library/situation.js';
 import BaseTool from "../base_tool.js";
 import CommandProperty from "../property.js";
 import * as skills from "../../library/skills.js";
@@ -51,6 +52,10 @@ class DigStairsTool extends BaseTool {
             let done = 0;
             for (let i = 1; i <= steps; i++) {
                 if (bot.interrupt_code) return toolResult('cancelled', `Stopped after ${done} steps.`, 'interrupted');
+                // never dig on with the last pickaxe almost broken: the way back up needs one (test 18.11.)
+                const picks = pickaxes(bot);
+                if (!picks.length || (picks.length === 1 && picks[0].left < 0.12))
+                    return toolResult(done ? 'partial' : 'blocked', `Stopped after ${done} steps: ${picks.length ? `last pickaxe (${picks[0].name}) almost broken` : 'no pickaxe left'}. Go back up the staircase (goToRememberedPlace mineneingang) and craft new pickaxes (2 stone ones for the stone, keep the iron one for ores).`, 'tool_worn');
                 const x = start.x + dx * i, y = start.y - i, z = start.z + dz * i;
                 // the step: feet at y, 3 blocks of air y..y+2, plus the block above the previous step for headroom
                 const cells = [[x, y, z], [x, y + 1, z], [x, y + 2, z], [x - dx, y + 2, z - dz]];

@@ -198,7 +198,9 @@ export async function craftRecipe(bot, itemName, num=1) {
         now = world.getInventoryCounts(bot)[itemName] || 0;
     }
     if (now <= before) {
-        log(bot, `Crafting ${itemName} did not put it into the inventory (still ${now}). Check the inventory and nearby drops before crafting it again.`);
+        const full = bot.inventory.items().filter(i => i.slot >= 9 && i.slot <= 44).length >= 36;
+        log(bot, full ? `Crafting ${itemName} failed: the inventory is full. Store things first (stash store, or putInChest at your base), then craft again.`
+            : `Crafting ${itemName} did not put it into the inventory (still ${now}). Check the inventory and nearby drops before crafting it again.`);
         if (placedTable) await collectBlock(bot, 'crafting_table', 1);
         return false;
     }

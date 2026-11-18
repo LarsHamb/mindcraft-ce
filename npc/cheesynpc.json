@@ -46,7 +46,8 @@
         "Sleep in your bed at the base once (goToBed): that sets your respawn point there, so after a death you are close to your things and your stash.",
         "Food for good: harvest your field with harvestField every 20-30 minutes (it sows again); 3 wheat make bread. Keep bred animals in a pen: buildPen builds fences and a gate and leads them in with their food.",
         "Fighting: you fight like a player (weapon cooldown, jump hits, shield up between hits). A bow (3 sticks + 3 string from spiders) with arrows (flint + stick + feather make 4) kills creepers from 8-15 blocks and answers skeletons; carry one with 16+ arrows. Well armed (2+ armor pieces or a shield, health 12+) you stand and fight skeletons and creepers; unarmed or hurt you retreat.",
-        "Your base is your village house: keep your chests there (stash store also puts away bulk blocks and loot and adds a second chest when full), a crafting table and a furnace beside the house, sleep in your bed. Come back to store things before the inventory is full."
+        "Your base is your village house: keep your chests there (stash store also puts away bulk blocks and loot and adds a second chest when full), a crafting table and a furnace beside the house, sleep in your bed. Come back to store things before the inventory is full.",
+        "Tools wear out: the Lage line shows your pickaxes in percent. Before a deep trip carry 2 spare stone pickaxes and spare sticks; head back up when only one pickaxe is left under 20%. In a desert or wherever wood is scarce, bring 16+ logs from elsewhere before mining; keep the inventory from filling (store bulk blocks at home first)."
     ],
     "task_knowledge": [
         "For mines call digStairs, never digDown.",

@@ -6,6 +6,17 @@ import { getHome } from './protection.js';
 const HOSTILE = /^(zombie|husk|drowned|zombie_villager|spider|cave_spider|vindicator|evoker|ravager|witch|pillager|skeleton|stray|bogged|creeper|slime|magma_cube|phantom|vex|blaze|ghast|wither_skeleton|piglin_brute|hoglin|zoglin|warden|silverfish|endermite|breeze|guardian|elder_guardian|shulker)$/;
 const ARMOR = ['helmet', 'chestplate', 'leggings', 'boots'];
 
+/** Pickaxes with the share of durability left, best first: [{name, left}] (left 0..1). */
+export function pickaxes(bot) {
+    const tier = n => ['netherite', 'diamond', 'iron', 'golden', 'stone', 'wooden'].findIndex(x => n.startsWith(x + '_'));
+    return (bot.inventory?.items?.() || []).filter(i => /_pickaxe$/.test(i.name)).map(i => {
+        const max = i.maxDurability || bot.registry?.itemsByName?.[i.name]?.maxDurability || 0;
+        const used = i.durabilityUsed ?? 0;
+        return {name: i.name, left: max ? Math.max(0, (max - used) / max) : 1};
+    }).sort((a, b) => tier(a.name) - tier(b.name));
+}
+export const freeSlots = bot => 36 - (bot.inventory?.items?.() || []).filter(i => i.slot >= 9 && i.slot <= 44).length;
+
 /** Minecraft time as words: day / evening (minutes to night) / night (minutes to morning). */
 export function timeText(t) {
     if (!Number.isFinite(t)) return null;
@@ -45,6 +56,11 @@ export function situation(agent) {
     const foods = bot.registry?.foodsByName || {};
     const food = items.filter(i => foods[i.name] && !/rotten_flesh|spider_eye|poisonous_potato|pufferfish/.test(i.name)).reduce((n, i) => n + i.count, 0);
     parts.push(`Essen: ${food}`);
+    // test 18.11.: both pickaxes wore out deep down and it was stuck at y 11 for 17 minutes
+    const picks = pickaxes(bot);
+    parts.push(picks.length ? `Spitzhacken: ${picks.map(p => `${p.name.replace('_pickaxe', '')} ${Math.round(p.left * 100)}%`).join(', ')}` : 'keine Spitzhacke');
+    const free = freeSlots(bot);
+    if (free <= 3) parts.push(`Inventar fast voll (${free} frei): erst einlagern (stash store)`);
 
     const home = getHome(bot);
     const dim = String(bot.game?.dimension || 'overworld').replace('minecraft:', '');
