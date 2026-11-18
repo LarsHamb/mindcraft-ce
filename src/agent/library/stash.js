@@ -64,7 +64,7 @@ export function stashSurplus(bot) {
 }
 
 const BULK = [
-    [/^cobblestone$/, 32], [/^(cobbled_deepslate|andesite|diorite|granite|tuff|calcite|netherrack|gravel|sand|red_sand)$/, 0],
+    [/^cobblestone$/, 32], [/^(cobbled_deepslate|andesite|diorite|granite|tuff|calcite|netherrack|gravel|sand|red_sand|sandstone|red_sandstone|terracotta|clay_ball|flint)$/, 0],
     [/^(dirt|coarse_dirt)$/, 8], [/_log$/, 16], [/_planks$/, 16], [/^(rotten_flesh|bone|gunpowder|spider_eye|ink_sac|kelp)$/, 0],
     [/^(raw_iron|raw_copper|raw_gold|copper_ingot)$/, 32], [/^(wheat_seeds|beetroot_seeds|pumpkin_seeds|melon_seeds)$/, 16],
     [/_sapling$/, 4], [/^(white|.*)_wool$/, 3], [/^(lapis_lazuli|redstone|emerald|quartz|amethyst_shard)$/, 0],
