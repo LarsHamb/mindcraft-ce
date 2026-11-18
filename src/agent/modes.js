@@ -262,7 +262,8 @@ const modes_list = [
             const strong = settings.combat_style !== 'basic' && canFight(agent.bot, Object.values(agent.bot.entities).filter(e => mc.isHostile(e) && e.position.distanceTo(agent.bot.entity.position) < 20));
             const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity) && (entity.position.distanceTo(agent.bot.entity.position) <= 8
                 || (strong && /^(skeleton|stray|bogged|creeper|witch|phantom)$/.test(entity.name) && entity.position.distanceTo(agent.bot.entity.position) <= 16)), 16);
-            if (enemy && (strong || await world.isClearPath(agent.bot, enemy))) {
+            // only with a clear path: a mob behind stone made an endless fight/unstuck loop deep down (test 18.11.)
+            if (enemy && await world.isClearPath(agent.bot, enemy)) {
                 say(agent, `Fighting ${enemy.name}!`);
                 // Arena 18.11.: Task tool calls cancelled the fight mid-swing ("interrupted, health 20") and it died in
                 // full iron armor. Keep the emergency window open while fighting so Task actions wait.

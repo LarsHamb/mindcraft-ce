@@ -62,7 +62,7 @@ export async function fight(bot, target, {lowHealth = 6, maxMs = 45000, isAlive 
     const melee = bot.heldItem && bot.heldItem.name !== 'bow' ? bot.heldItem : null;
     const weapon = melee?.name || '';
     const cd = cooldownMs(weapon);
-    let lastHit = 0, stepBack = 0, shotWithBow = false;
+    let lastHit = 0, stepBack = 0, shotWithBow = false, closest = Infinity, closerAt = Date.now();
     const start = Date.now();
     bot.pathfinder.setMovements(new pf.Movements(bot));
     try {
@@ -72,6 +72,9 @@ export async function fight(bot, target, {lowHealth = 6, maxMs = 45000, isAlive 
             const me = bot.entity.position;
             const d = target.position.distanceTo(me);
             if (d > 24) return 'gone';
+            // no way to it (behind stone, across a gap): give up instead of standing there
+            if (d < closest - 0.5) { closest = d; closerAt = Date.now(); }
+            else if (d > 3.2 && Date.now() - closerAt > 6000) return 'gone';
             if (bot.health <= lowHealth) return 'retreat';
 
             // bow first where it is the better weapon (creeper at range, skeletons, flyers)
