@@ -92,11 +92,26 @@ export async function fight(bot, target, {lowHealth = 6, maxMs = 45000, isAlive 
                 await sleep(100);
                 continue;
             }
-            // keep at sword range; a ranged mob gets approached behind the shield
+            // keep at sword range. Close and on the same level: sprint straight at it (skeletons back off faster
+            // than the pathfinder re-plans; test 18.11.: 0 hits in 20 s); otherwise let the pathfinder find the way.
             if (d > 2.8) {
-                bot.pathfinder.setGoal(new pf.goals.GoalFollow(target, 2), true);
+                const level = Math.abs(target.position.y - me.y) < 1.5;
+                if (level && d < 16) {
+                    bot.pathfinder.setGoal(null);
+                    await bot.lookAt(eyes(target), true).catch(() => {});
+                    bot.setControlState('forward', true);
+                    bot.setControlState('sprint', true);
+                    bot.setControlState('jump', !!bot.entity.isCollidedHorizontally);
+                } else {
+                    bot.setControlState('forward', false);
+                    bot.setControlState('sprint', false);
+                    bot.pathfinder.setGoal(new pf.goals.GoalFollow(target, 2), true);
+                }
                 raiseShield(bot, shield && RANGED.test(target.name));
             } else {
+                bot.setControlState('forward', false);
+                bot.setControlState('sprint', false);
+                bot.setControlState('jump', false);
                 bot.pathfinder.setGoal(null);
             }
             await bot.lookAt(eyes(target), true).catch(() => {});

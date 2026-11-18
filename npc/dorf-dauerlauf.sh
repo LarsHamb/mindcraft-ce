@@ -32,7 +32,15 @@ S=$(date +%s)
 schnapp() {
   T=$(( ($(date +%s) - S) / 60 ))
   POS=$(./rcon26.sh "data get entity MindCE Pos" | sed 's/.*\[\([-0-9]*\)\.[0-9]*d, \([-0-9]*\)\.[0-9]*d, \([-0-9]*\)\.[0-9]*d\].*/\1 \2 \3/')
-  INV=$(./rcon26.sh "data get entity MindCE Inventory" | grep -oE 'id: "minecraft:[a-z_]+", count: [0-9]+' | sed 's/id: "minecraft://; s/", count: / /' | grep -E "diamond|iron|chest|bed|_pickaxe|_sword|shield|bow|arrow|cooked|bread|torch" | awk '{a[$1]+=$2} END {for (k in a) printf "%s %d, ", k, a[k]}')
+  INV=$(./rcon26.sh "data get entity MindCE Inventory" | python3 -c "
+import re,sys,collections
+s=sys.stdin.read(); c=collections.Counter()
+for m in re.finditer(r'\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}', s):
+    b=m.group(1); i=re.search(r'id: \"minecraft:([a-z_]+)\"', b); n=re.search(r'count: (\d+)', b)
+    if i and n: c[i.group(1)]+=int(n.group(1))
+keep=[k for k in c if re.search('diamond|iron|chest|bed|pickaxe|sword|shield|bow|arrow|cooked|bread|torch|coal', k)]
+print(', '.join(f'{k} {c[k]}' for k in sorted(keep)))
+")
   echo "$T min: pos $POS | $INV" | tee -a $E
 }
 while [ $(( $(date +%s) - S )) -lt $(( MIN * 60 )) ]; do sleep 600; schnapp; done

@@ -178,7 +178,10 @@ export function initBot(username) {
     bot.loadPlugin(collectblock);
     bot.loadPlugin(autoEat);
     bot.loadPlugin(armorManager); // auto equip armor
-    bot.once('spawn', () => { guardBotActions(bot); installProtection(bot); installToolThrift(bot); installMeeting(bot); });
+    bot.once('spawn', () => { guardBotActions(bot); installProtection(bot); installToolThrift(bot); installMeeting(bot);
+        // long ways (home, mine) gave up with "Took to long to decide path" (test 18.11.): more planning time
+        if (bot.pathfinder) bot.pathfinder.thinkTimeout = Math.max(bot.pathfinder.thinkTimeout || 0, 12000);
+    });
     bot.once('resourcePack', () => {
         bot.acceptResourcePack();
     });
