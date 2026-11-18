@@ -457,7 +457,8 @@ const modes_list = [
                 return;
             }
             // already at home in the evening: put the surplus away once
-            if (dist <= 24 && t >= 10500 && t < 12600 && day !== this.storedDay && !job && agent.isIdle()) {
+            // test 18.11.: at 12300 this cut into 'village sleep'; only before dusk and never while an action runs
+            if (dist <= 24 && t >= 10000 && t < 11800 && day !== this.storedDay && !job && agent.isIdle() && !agent.actions?.executing) {
                 this.storedDay = day;
                 const hold = setInterval(() => { agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, Date.now() + 3000); }, 1000);
                 execute(this, agent, store, 3).finally(() => clearInterval(hold));
