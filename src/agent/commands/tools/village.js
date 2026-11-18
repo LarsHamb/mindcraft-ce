@@ -5,7 +5,7 @@ import { toolResult } from "../../tool_result.js";
 import { getHome, setHome, inHomeVillage, FILL } from "../../library/protection.js";
 import { findVillage, bedsAround, villagersAround, chooseFreeBed, isNight, darkSpots, groundHoles, VILLAGE_RADIUS,
     villageWood, towerNeeds, findTowerSite, villageThreats, RANGED, TOWER_HEIGHT } from "../../library/village.js";
-import { makeStash, STASH_PLACE } from "../../library/stash.js";
+import { makeStash, stashPlace, STASH_PLACE } from "../../library/stash.js";
 import { ripeCrops, CROPS } from "./harvestField.js";
 import { currentCharacter } from "../../library/characters.js";
 import settings from "../../settings.js";
@@ -89,7 +89,7 @@ async function moveIn(agent) {
     agent.memory_bank?.rememberPlace?.('zuhause', bed.x, bed.y, bed.z);
     agent.memory_bank?.rememberPlace?.('dorf', center.x, center.y, center.z);
     let chest = '';
-    const lager = agent.memory_bank?.recallPlace?.(STASH_PLACE);
+    const lager = stashPlace(agent);
     const chestHere = lager && Math.hypot(lager[0] - bed.x, lager[2] - bed.z) <= 6;
     if (!chestHere && (count(bot, /^chest$/) || count(bot, /_planks$/) >= 8)) {
         const err = await makeStash(bot, agent);

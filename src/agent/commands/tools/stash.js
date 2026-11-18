@@ -1,7 +1,7 @@
 import BaseTool from "../base_tool.js";
 import CommandProperty from "../property.js";
 import { toolResult } from "../../tool_result.js";
-import { makeStash, storeInStash, takeFromStash, STASH_PLACE } from "../../library/stash.js";
+import { makeStash, storeInStash, takeFromStash, stashPlace, STASH_PLACE } from "../../library/stash.js";
 
 class StashTool extends BaseTool {
     constructor() {
@@ -19,7 +19,7 @@ class StashTool extends BaseTool {
             if (mode === 'make') {
                 const err = await makeStash(bot, agent);
                 if (err) return toolResult('blocked', err, 'no_stash');
-                const p = agent.memory_bank.recallPlace(STASH_PLACE);
+                const p = stashPlace(agent);
                 return toolResult('ok', `Stash chest placed at ${p.map(Math.round).join(',')} and saved as '${STASH_PLACE}'.`);
             }
             const r = mode === 'take' ? await takeFromStash(bot, agent) : await storeInStash(bot, agent);

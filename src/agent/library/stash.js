@@ -6,6 +6,23 @@ import Vec3 from 'vec3';
 import { readFileSync, writeFileSync, rmSync } from 'fs';
 
 export const STASH_PLACE = 'lager';
+
+// test 18.11.: the place 'lager' was lost on a restart (the location snapshot was older than the chest), so after a
+// death there was no chest to gear up from. The chest position is also kept in bots/<name>/stash.json.
+const stashFile = name => `./bots/${name}/stash.json`;
+export function stashPlace(agent) {
+    const p = agent?.memory_bank?.recallPlace?.(STASH_PLACE);
+    if (p) return p;
+    try {
+        const q = JSON.parse(readFileSync(stashFile(agent.name), 'utf8'));
+        if (Array.isArray(q) && q.length === 3) { agent.memory_bank?.rememberPlace?.(STASH_PLACE, ...q); return q; }
+    } catch {}
+    return null;
+}
+export function setStashPlace(agent, x, y, z) {
+    agent.memory_bank?.rememberPlace?.(STASH_PLACE, x, y, z);
+    try { writeFileSync(stashFile(agent.name), JSON.stringify([x, y, z])); } catch {}
+}
 const TOOL_KINDS = ['pickaxe', 'axe', 'sword', 'shovel', 'hoe'];
 const TIERS = ['netherite', 'diamond', 'iron', 'golden', 'stone', 'wooden'];
 const KEEP_FOOD = 8;
@@ -50,6 +67,9 @@ export function stashSurplus(bot) {
         const tools = items.filter(i => kindOf(i.name) === kind).sort((a, b) => tier(a.name) - tier(b.name));
         for (const t of tools.slice(1)) out.push({name: t.name, count: t.count});
     }
+    // spare armor (a piece in the inventory while that slot is already worn) goes in as the spare kit
+    const worn = bot.inventory.slots?.slice?.(5, 9) || [];
+    for (const i of items) { const k = armorKind(i.name); if (k && worn[ARMOR_KINDS.indexOf(k)]) out.push({name: i.name, count: i.count}); }
     // Lars, 18.11.: a base with chests. Bulk blocks and loot beyond what he works with go in too (full inventory)
     for (const [re, keep] of BULK) {
         const have = items.filter(i => re.test(i.name));
@@ -85,11 +105,76 @@ export function stashNeeds(bot, chestItems) {
         const best = chestItems.filter(i => kindOf(i.name) === kind).sort((a, b) => tier(a.name) - tier(b.name))[0];
         if (best) take.push({name: best.name, count: 1});
     }
+    // armor for every empty slot (Lars, 18.11.: after a death gear up at the village chest first)
+    const worn = bot.inventory.slots?.slice?.(5, 9) || [];
+    ARMOR_KINDS.forEach((k, n) => {
+        if (worn[n] || items.some(i => armorKind(i.name) === k)) return;
+        const best = chestItems.filter(i => armorKind(i.name) === k).sort((a, b) => tier(a.name) - tier(b.name))[0];
+        if (best) take.push({name: best.name, count: 1, wear: true});
+    });
     return take;
 }
 
+export const ARMOR_KINDS = ['helmet', 'chestplate', 'leggings', 'boots'];
+const ARMOR_DEST = {helmet: 'head', chestplate: 'torso', leggings: 'legs', boots: 'feet'};
+export const armorKind = name => ARMOR_KINDS.find(k => String(name).endsWith('_' + k)) || (name === 'turtle_helmet' ? 'helmet' : null);
+
+/**
+ * What the spare kit in the chest lacks (Lars, 18.11.: "dort liegt immer eine Ersatz-Ausruestung"):
+ * a pickaxe, a weapon (sword or axe), 5 food and, if possible, armor. Returns a list of missing parts.
+ */
+export function kitMissing(chestItems, foodNames = null) {
+    const has = re => chestItems.some(i => re.test(i.name));
+    const missing = [];
+    if (!has(/_pickaxe$/)) missing.push('pickaxe');
+    if (!has(/_sword$/) && !chestItems.some(i => /_axe$/.test(i.name) && !/_pickaxe$/.test(i.name))) missing.push('weapon');
+    const food = chestItems.filter(i => foodNames ? foodNames[i.name] : /^(bread|cooked_|baked_potato|apple|carrot)/.test(i.name)).reduce((n, i) => n + i.count, 0);
+    if (food < 5) missing.push('food');
+    if (!chestItems.some(i => armorKind(i.name))) missing.push('armor');
+    return missing;
+}
+
+/** Fill the spare kit: craft a stone pickaxe or sword for the chest when it lacks one and cobblestone is there. */
+export async function ensureSpareKit(bot, agent) {
+    let s = await openStash(bot, agent);
+    if (s.error) return {error: s.error};
+    let inChest = s.container.containerItems();
+    s.container.close();
+    const foods = bot.registry?.foodsByName || null;
+    const missing = kitMissing(inChest, foods);
+    const put = [];
+    const count = n => bot.inventory.items().filter(i => i.name === n).reduce((a, i) => a + i.count, 0);
+    for (const [part, item, cobble] of [['pickaxe', 'stone_pickaxe', 3], ['weapon', 'stone_sword', 2]]) {
+        if (!missing.includes(part) || bot.interrupt_code) continue;
+        const before = count(item);
+        if (count('cobblestone') + count('cobbled_deepslate') < cobble + 4) continue; // keep a few for himself
+        try { await skills.craftRecipe(bot, item, 1); } catch {}
+        if (count(item) > before) put.push(item);
+    }
+    if (!put.length) return {missing, put};
+    s = await openStash(bot, agent);
+    if (s.error) return {error: s.error, missing, put: []};
+    const stored = [];
+    try {
+        for (const name of put) {
+            // the newly made (worst) one goes in, he keeps his best
+            const it = bot.inventory.items().filter(i => i.name === name)[0];
+            if (it) { try { await s.container.deposit(it.type, null, 1); stored.push(name); } catch {} }
+        }
+    } finally { s.container.close(); }
+    const left = missing.filter(m => !(m === 'pickaxe' && stored.includes('stone_pickaxe')) && !(m === 'weapon' && stored.includes('stone_sword')));
+    return {missing: left, put: stored};
+}
+
+/** Distance from the bot to the stash chest, or Infinity. */
+export function stashDistance(bot, agent) {
+    const p = stashPlace(agent);
+    if (!p || !bot.entity) return Infinity;
+    return Math.hypot(bot.entity.position.x - p[0], bot.entity.position.z - p[2]);
+}
+
 function stashChest(bot, agent) {
-    const p = agent.memory_bank?.recallPlace?.(STASH_PLACE);
+    const p = stashPlace(agent);
     if (!p) return null;
     const pos = new Vec3(Math.floor(p[0]), Math.floor(p[1]), Math.floor(p[2]));
     return {pos, block: bot.blockAt(pos)};
@@ -125,7 +210,7 @@ export async function makeStash(bot, agent) {
         if (await skills.placeBlock(bot, 'chest', p.x, p.y, p.z)) {
             const placed = bot.blockAt(p);
             if (placed && /chest/.test(placed.name)) {
-                agent.memory_bank.rememberPlace(STASH_PLACE, p.x, p.y, p.z);
+                setStashPlace(agent, p.x, p.y, p.z);
                 return null;
             }
         }
@@ -193,6 +278,12 @@ export async function takeFromStash(bot, agent) {
             try { await s.container.withdraw(item.type, null, it.count); taken.push(`${it.count} ${it.name}`); } catch {}
         }
     } finally { s.container.close(); }
+    // put the armor on
+    for (const it of bot.inventory.items()) {
+        const k = armorKind(it.name);
+        if (!k || bot.inventory.slots[5 + ARMOR_KINDS.indexOf(k)]) continue;
+        try { await bot.equip(it, ARMOR_DEST[k]); } catch {}
+    }
     return {taken, pos: s.pos};
 }
 

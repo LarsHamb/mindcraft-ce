@@ -12,6 +12,8 @@ import { RANGED, ILLAGERS, markIllagers, dangerAt } from './library/danger.js';
 import * as stashLib from './library/stash.js';
 import { isNight } from './library/village.js';
 import { canFight } from './library/combat.js';
+import { illagerResponse, illagerState, fleePoint, findBell, ringBell, FLEE_FAR, FLEE_QUIET_MS, ALARM_MS, leaveAt, walkTicks } from './library/raid.js';
+import { currentCharacter } from './library/characters.js';
 
 async function say(agent, message) {
     agent.bot.modes.behavior_log += message + '\n';
@@ -55,6 +57,77 @@ export function dayFacts(entries) {
     if (kills.length) { const c = {}; for (const k of kills) c[k] = (c[k] || 0) + 1; parts.push(`defeated: ${Object.entries(c).map(([k, n]) => `${n} ${k}`).join(', ')}`); }
     if (deaths) parts.push(`died ${deaths} time(s)`);
     return parts.join(' | ');
+}
+
+// Lars, 18.11.: the pillager patrol at the gravel pit (flee every 14 s for hours). See library/raid.js.
+async function illagerReflex(mode, agent, illagers) {
+    const bot = agent.bot, now = Date.now(), home = getHome(bot);
+    const st = illagerState(bot, illagers, home, mode.fledUntil || 0, now);
+    let ring = false;
+    if (st.nearVillage && now - (mode.lastAlarm || 0) > ALARM_MS) {
+        mode.lastAlarm = now;
+        ring = st.homeDist <= 48;
+        journal('alarm', {mobs: illagers.length, near: illagers[0].name}, bot);
+        const warn = /anja/i.test(currentCharacter(agent)?.id || '') ? 'Hilfe, Plünderer am Dorf! Alle schnell in die Häuser!'
+            : 'ALARM! Plünderer am Stützpunkt! Alle Truppen in Deckung, ich läute die Glocke!';
+        try { agent.openChat(warn); } catch {}
+        agent.agentSystem?.wake?.('system', `Raid alarm: ${illagers.length} illager(s) near your village. ${st.armor >= 2 && st.weapon ? 'You are armed: defend the village (your reflex fights them).' : 'You have no armor: stay inside your house until they are gone, do not walk out to them.'}`);
+    }
+    const what = illagerResponse(st);
+    if ((what === 'ignore' && !ring) || now - (mode.lastFlee || 0) < 3000) return;
+    mode.lastFlee = now;
+    if (what === 'fight') {
+        journal('reflex', {kind: 'fight', mob: illagers[0].name, n: illagers.length}, bot);
+        agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, now + 5000);
+        const hold = setInterval(() => { agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, Date.now() + 3000); }, 1000);
+        execute(mode, agent, async () => {
+            try {
+                if (ring) journal('bell', {rang: await ringBell(bot, skills, findBell(bot, home), illagers)}, bot);
+                const fought = await skills.defendSelf(bot, 32);
+                if (!fought) for (const e of illagers) (bot.__ignoreMobs ||= new Map()).set(e.id, Date.now() + 60000);
+            } finally { clearInterval(hold); }
+        }).finally(() => { clearInterval(hold); agent.emergencyUntil = Math.min(agent.emergencyUntil || 0, Date.now() + 500); });
+        return;
+    }
+    if (what === 'ignore') {   // only the bell
+        execute(mode, agent, async () => { journal('bell', {rang: await ringBell(bot, skills, findBell(bot, home), illagers)}, bot); });
+        return;
+    }
+    // flee ONCE and far (or into the house), then leave this patrol alone for a while
+    mode.fledUntil = now + FLEE_QUIET_MS;
+    const me = bot.entity.position, ref = home?.bed || home?.bell;
+    const to = what === 'flee_home' && ref ? {...ref, home: true} : fleePoint(me, illagers.map(e => e.position), ref);
+    journal('reflex', {kind: 'flee_far', mob: illagers[0].name, to: [to.x, to.z], home: !!to.home}, bot);
+    say(agent, to.home ? 'Plünderer! Ab nach Hause.' : 'Plünderer! Ich verschwinde weit weg.');
+    agent.emergencyUntil = now + 15000;
+    const hold = setInterval(() => { agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, Date.now() + 3000); }, 1000);
+    execute(mode, agent, async () => {
+        try {
+            try { bot.pvp?.stop?.(); } catch {}
+            if (ring) journal('bell', {rang: await ringBell(bot, skills, findBell(bot, home), illagers)}, bot);
+            if (to.home) { await Promise.race([skills.goToPosition(bot, to.x, to.y, to.z, 1).catch(() => false), new Promise(r => setTimeout(r, 60000))]); return; }
+            // test 18.11.: a path to a point 64 blocks away was often not found and he stood still under fire.
+            // Run away from them instead (no full path needed) until all are FLEE_FAR away, at most 60 s.
+            const closestOf = () => illagers.filter(e => e.isValid !== false && bot.entities[e.id]).sort((a, b) => a.position.distanceTo(bot.entity.position) - b.position.distanceTo(bot.entity.position))[0];
+            const until = Date.now() + 60000;
+            let target = closestOf();
+            bot.pathfinder.setMovements(new pf.Movements(bot));
+            while (target && Date.now() < until && !bot.interrupt_code && target.position.distanceTo(bot.entity.position) < FLEE_FAR) {
+                if (bot.pathfinder.goal?.__target !== target) {
+                    const g = new pf.goals.GoalInvert(new pf.goals.GoalFollow(target, FLEE_FAR + 4));
+                    g.__target = target;
+                    bot.pathfinder.setGoal(g, true);
+                }
+                await new Promise(r => setTimeout(r, 300));
+                target = closestOf();
+            }
+        } finally { clearInterval(hold); bot.pathfinder?.setGoal?.(null); }
+    }).finally(() => {
+        clearInterval(hold);
+        agent.emergencyUntil = Date.now() + 1000;
+        const c = illagers[0].position;
+        agent.agentSystem?.wake?.('system', `You fled from a pillager patrol near ${Math.round(c.x)} / ${Math.round(c.z)}${to.home ? ' into your house' : ''}. Without armor do not go back there for the next minutes: pick work elsewhere or walk around that area (it is a danger zone). Get armor (iron) to fight them later.`);
+    });
 }
 
 const modes_list = [
@@ -198,6 +271,11 @@ const modes_list = [
             if (!near.length) return;
             const zone = markIllagers(bot, near);
             if (zone) say(agent, `Achtung, ${zone.name === 'pillagers' ? 'Pillager' : 'ein Pillager-Lager'} bei ${zone.x} / ${zone.z}. Ich halte Abstand.`);
+            // Lars, 18.11.: illagers get their own answer (fight armored, flee once far, bell for the village)
+            // a pillager the fight gave up on (unreachable, on a roof) is left alone for a minute: no 3 s fight loop
+            const ignored = bot.__ignoreMobs || new Map();
+            const illagers = near.filter(e => ILLAGERS.has(e.name) && !((ignored.get(e.id) || 0) > Date.now()));
+            if (illagers.length) return illagerReflex(this, agent, illagers);
             const closest = near.reduce((a, b) => (a.position.distanceTo(me) <= b.position.distanceTo(me) ? a : b));
             const d = closest.position.distanceTo(me);
             // skeletons are everywhere at night: flee from them only when close; illagers always
@@ -236,7 +314,7 @@ const modes_list = [
             const bot = agent.bot;
             agent.actions.progress?.observe(bot);
             // long walks and searches compute paths while standing (Boys 17.11.: 38 interruptions): give them longer
-            const slow = /search|goTo|recover|follow|village/i.test(agent.actions.currentActionLabel || '');
+            const slow = /search|goTo|recover|follow|village|evening/i.test(agent.actions.currentActionLabel || '');
             const limit = (slow ? 45 : this.max_stuck_time) * 1000;
             if (!agent.actions.progress || agent.actions.progress.healthy(limit)) return;
             say(agent, 'I\'m stuck!');
@@ -280,7 +358,9 @@ const modes_list = [
             // live 18.11.: a creeper 10 blocks below the bunker gave 10 minutes of fight/stuck loop. Mobs far above or
             // below, and mobs it just gave up on (no closer for 6 s), are left alone for a minute.
             const me = agent.bot.entity.position, ignored = agent.bot.__ignoreMobs || new Map();
-            const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity) && Math.abs(entity.position.y - me.y) <= 4
+            // test 18.11.: without armor it fought the pillagers hand to hand and died; illagers only when strong
+            const illagerOk = e => !ILLAGERS.has(e.name) || illagerResponse(illagerState(agent.bot, [e], null)) === 'fight';
+            const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity) && illagerOk(entity) && Math.abs(entity.position.y - me.y) <= 4
                 && !((ignored.get(entity.id) || 0) > Date.now()) && (entity.position.distanceTo(agent.bot.entity.position) <= 8
                 || (strong && /^(skeleton|stray|bogged|parched|creeper|witch|phantom)$/.test(entity.name) && entity.position.distanceTo(agent.bot.entity.position) <= 16)), 16);
             // only with a clear path: a mob behind stone made an endless fight/unstuck loop deep down (test 18.11.)
@@ -321,6 +401,67 @@ const modes_list = [
                 const r = await villageMoveIn(agent);
                 skills.log(bot, `Moving to the village: ${r?.text || r}`);
             });
+        }
+    },
+    {
+        // Lars, 18.11. ("Abend-Heimweg"): leave for home in time before dusk, the walk counted in (raid.js leaveAt),
+        // then put surplus into the village chest and keep the spare kit there. Without a player job he goes himself.
+        name: 'evening_home',
+        description: 'Walk home to the village in time before dusk and store surplus in the village chest.',
+        interrupts: ['all'],
+        on: true,
+        active: false,
+        last: 0,
+        leftDay: -1,
+        storedDay: -1,
+        update: async function (agent) {
+            const bot = agent.bot, home = getHome(bot), ref = home?.bed || home?.bell;
+            if (!ref || !bot.entity || Date.now() - this.last < 5000) return;
+            this.last = Date.now();
+            const t = bot.time?.timeOfDay, day = bot.time?.day;
+            if (!Number.isFinite(t) || (agent.emergencyUntil || 0) > Date.now() || bot.health <= 0) return;
+            const me = bot.entity.position, dist = Math.round(Math.hypot(me.x - ref.x, me.z - ref.z));
+            const job = agent.agentSystem?.currentDirective?.forPlayer;
+            const wake = msg => agent.agentSystem?.wake?.('system', msg);
+            const store = async () => {
+                if (!stashLib.stashPlace(agent) || stashLib.stashDistance(bot, agent) > 40) return;
+                const r = await stashLib.storeInStash(bot, agent).catch(e => ({error: e.message}));
+                const k = r.error ? {} : await stashLib.ensureSpareKit(bot, agent).catch(e => ({error: e.message}));
+                journal('evening_store', {stored: (r.stored || []).join(', ').slice(0, 150), kit: (k.put || []).join(','), missing: (k.missing || []).join(','), error: r.error || k.error || null}, bot);
+            };
+            if (dist > 24 && t >= leaveAt(dist) && t < 13000 && day !== this.leftDay) {
+                this.leftDay = day;
+                const secs = Math.round(walkTicks(dist) / 20);
+                const armored = [5, 6, 7, 8].filter(i => bot.inventory.slots[i]).length >= 2;
+                journal('evening_home', {dist, job: job ? String(agent.agentSystem?.currentDirective?.objective || '').slice(0, 60) : null}, bot);
+                if (job && armored) return wake(`Evening: home is ${dist} blocks away (about ${secs} s walk), dusk comes soon. You are armored: finish the player's job carefully if it is nearly done, else tell them you continue in the morning; then walk home (goToRememberedPlace zuhause). No bunker out here.`);
+                if (job) return wake(`Evening: home is ${dist} blocks away (about ${secs} s walk) and you have no armor. Tell the player in one short line you continue in the morning, then walk home now (goToRememberedPlace zuhause). No bunker out here.`);
+                // test 18.11.: a Task tool call cancelled it right after arriving, before the chest: hold the window
+                const hold = setInterval(() => { agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, Date.now() + 3000); }, 1000);
+                agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, Date.now() + 3000);
+                execute(this, agent, async () => {
+                    say(agent, 'Feierabend, ich gehe heim ins Dorf.');
+                    await skills.goToPosition(bot, ref.x, ref.y, ref.z, 2);
+                    const p = bot.entity.position;
+                    if (Math.hypot(p.x - ref.x, p.z - ref.z) <= 24 && this.storedDay !== day) { this.storedDay = day; await store(); }
+                }, 6).finally(() => {
+                    clearInterval(hold);
+                    agent.emergencyUntil = Math.min(agent.emergencyUntil || 0, Date.now() + 500);
+                    const p = bot.entity?.position, home = p && Math.hypot(p.x - ref.x, p.z - ref.z) <= 24;
+                    // test 18.11.: unstuck interrupted the walk halfway; go on by itself (at most 3 times a day)
+                    this.tries = this.triesDay === day ? (this.tries || 0) + 1 : 1; this.triesDay = day;
+                    if (!home && this.tries < 3) { this.leftDay = -1; return; }
+                    wake(home ? 'Evening: you are home in the village, surplus is in your chest. Stay in the village now; at dusk sleep in your bed (village sleep), or keep watch (village watch) if you are armored.'
+                        : `Evening: the walk home stopped ${p ? Math.round(Math.hypot(p.x - ref.x, p.z - ref.z)) : '?'} blocks before home. Go on home now (goToRememberedPlace zuhause); a shelter only in a real emergency.`);
+                });
+                return;
+            }
+            // already at home in the evening: put the surplus away once
+            if (dist <= 24 && t >= 10500 && t < 12600 && day !== this.storedDay && !job && agent.isIdle()) {
+                this.storedDay = day;
+                const hold = setInterval(() => { agent.emergencyUntil = Math.max(agent.emergencyUntil || 0, Date.now() + 3000); }, 1000);
+                execute(this, agent, store, 3).finally(() => clearInterval(hold));
+            }
         }
     },
     {
@@ -429,6 +570,26 @@ const modes_list = [
             const streak = (agent.recentDeaths || []).filter(t => Date.now() - t < 10 * 60000).length;
             const dist = bot.entity.position.distanceTo(new Vec3(r.x, r.y, r.z));
             const armored = bot.inventory.slots.slice(5, 9).some(Boolean);
+            const hasStash = Boolean(stashLib.stashPlace(agent));
+            // Lars, 18.11.: respawned at the village bed: first gear up at the village chest (spare kit), then fetch
+            const homeRef = getHome(bot)?.bed || getHome(bot)?.bell, me = bot.entity.position;
+            const atHome = homeRef && Math.hypot(me.x - homeRef.x, me.z - homeRef.z) <= 32;
+            const naked = !bot.inventory.items().some(i => /_(pickaxe|sword|axe)$/.test(i.name));
+            if (!r.geared && hasStash && naked && stashLib.stashDistance(bot, agent) <= 80) {
+                r.geared = true;
+                agent.emergencyUntil = Date.now() + 60000;
+                execute(this, agent, async () => {
+                    say(agent, 'Erst mal ausrüsten.');
+                    const t = await stashLib.takeFromStash(bot, agent);
+                    journal('recover', {msg: t.error ? `stash: ${t.error}` : `gear up: ${t.taken.join(', ')}`}, bot);
+                }, 2).finally(release);
+                return;
+            }
+            // at home at night: stay in the house (bed), no digging in in the village
+            if (isNight(bot) && !armored && atHome && dist > 24 && !r.dugIn) {
+                r.dugIn = true;
+                return finish('It is night and you respawned at home without armor. Stay in your house and sleep (village sleep); fetch your dropped things at first light if they are still there.');
+            }
             if (isNight(bot) && !armored && (streak >= 2 || dist > 24) && !r.dugIn) {
                 r.dugIn = true;
                 agent.emergencyUntil = Date.now() + 60000;
@@ -440,7 +601,6 @@ const modes_list = [
                 return;
             }
             const goRecover = r.recoverable && !far && Date.now() < r.until && r.tries < 3;
-            const hasStash = Boolean(agent.memory_bank?.recallPlace?.(stashLib.STASH_PLACE));
             if (!goRecover && !hasStash) return finish(r.recoverable ? 'Could not get your dropped things back (too far or too late). Start again with wood and tools.' : null);
             r.tries++;
             agent.emergencyUntil = Date.now() + 5 * 60000; // Task waits; the reflex is short
@@ -520,7 +680,8 @@ const modes_list = [
                 const armored = [5, 6, 7, 8].filter(i => bot.inventory.slots[i]).length >= 2;
                 // sand test 18.11.: at dusk it dropped a player's job (108 of 128 sand) to walk 270 blocks home to bed
                 if (bed && far > 80 && armored) wake(`Night falls in about a minute. Your village bed is ${far} blocks away. If you are on a job for a player, finish it here carefully (you are armored; torches around you, fight only with a clear path), then go home. Without a job, go home and sleep (village sleep).`);
-                else if (bed && far > 80) wake(`Night falls in about a minute. Your village bed is ${far} blocks away, too far to reach before dark without armor: build a shelter here (buildShelter) or dig in, and keep the player's job for the morning.`);
+                // Lars, 18.11.: no bunkers in the wild with a home; walk home anyway, a shelter only in a real emergency
+                else if (bed && far > 80) wake(`Night falls in about a minute. Your village bed is ${far} blocks away (about ${Math.round(walkTicks(far) / 20)} s): walk home now (goToRememberedPlace zuhause), the player's job waits for the morning. Only in a real emergency (badly hurt, monsters right at you) dig in or build a shelter.`);
                 else if (bed) wake('Night falls in about a minute. Go home to your village bed and sleep there (village sleep). Fighting creepers at night in the open is not a plan.');
                 else wake('Night falls in about a minute. Go to your shelter, or build one now with buildShelter, or dig in; put torches around it. Do not stay in the open. If you have a bed at your base, sleep in it (goToBed): that also sets your respawn point there.');
                 // Lars, 18.11.: a short day report in character, once per day, when someone is there to hear it

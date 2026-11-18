@@ -234,6 +234,8 @@ export function bowTarget(bot, target) {
     const d = target.position.distanceTo(bot.entity.position);
     if (target.name === 'creeper') return d >= 5 && d <= 20;
     if (target.name === 'phantom' || target.name === 'ghast' || target.name === 'blaze') return d <= 30;
+    // Lars, 18.11.: crossbow distance. Pillagers only from outside their range, inside it rush in with the shield
+    if (target.name === 'pillager') return d > 16 && d <= 26;
     if (RANGED.test(target.name)) return d >= 6 && d <= 24;
     return d >= 8 && d <= 20 && Math.abs(target.position.y - bot.entity.position.y) > 2; // across a gap or ledge
 }

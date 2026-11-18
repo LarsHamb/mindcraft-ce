@@ -6,6 +6,14 @@ L=/home/lars/mindcraft-ce-lauf
 if docker ps --format "{{.Names}}" | grep -qx karim-bot; then echo "karim-bot laeuft noch, erst ~/karim-bot/sicher-stoppen.sh"; exit 1; fi
 mkdir -p $L/bots-live
 cp /home/lars/mindcraft-ce/npc/cheesynpc.json $L/profiles/cheesynpc.json
+# weltbezogene Einstellungen (village_hint) aus settings-live-lokal.json, geschrieben von neustart-neue-welt.sh
+SET=$(python3 - /home/lars/mindcraft-ce/npc/settings-live.json $L/settings-live-lokal.json <<'PY'
+import json, os, sys
+d = json.load(open(sys.argv[1], encoding='utf-8'))
+if os.path.exists(sys.argv[2]): d.update(json.load(open(sys.argv[2], encoding='utf-8')))
+print(json.dumps(d, ensure_ascii=False))
+PY
+) || { echo "Einstellungen fehlerhaft"; exit 1; }
 docker rm -f mindcraft-live-bot >/dev/null 2>&1
 docker run -d --name mindcraft-live-bot --restart unless-stopped --network karimnet --user 1000:1000 \
   -p 127.0.0.1:8091:8091 \
@@ -13,6 +21,6 @@ docker run -d --name mindcraft-live-bot --restart unless-stopped --network karim
   -v /home/lars/karim-bot/.auth:/auth \
   -v $L/bots-live:/app/bots \
   -v $L/profiles:/app/lauf/profiles:ro -e HOME=/tmp -e EXIT_ON_AGENT_FAILURE=60 \
-  -e SETTINGS_JSON="$(cat /home/lars/mindcraft-ce/npc/settings-live.json)" \
+  -e SETTINGS_JSON="$SET" \
   mindcraft-ce26 sh -c "export GEMINI_API_KEY=\$(node -e \"console.log(JSON.parse(require(\\\"fs\\\").readFileSync(\\\"/secrets/kv.json\\\")).apiKey)\"); exec node main.js"
 echo "gestartet: docker logs -f mindcraft-live-bot"

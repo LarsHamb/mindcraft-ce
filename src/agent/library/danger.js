@@ -37,6 +37,19 @@ export function markIllagers(bot, entities, now = Date.now()) {
 }
 
 // Pathfinder: walking into a danger zone is very expensive, so routes go around it.
-export function dangerStepCost(bot, block) {
-    return block?.position && dangerAt(bot, block.position) ? 200 : 0;
+// Test 18.11.: standing INSIDE a zone, every step cost 200, the path search timed out ("No path to the goal")
+// and he stood still under crossbow fire until he died (likely also the live hang at the gravel pit). Inside a
+// zone only steps further in cost; steps that keep or grow the distance to its center are free, so he gets out.
+export function dangerStepCost(bot, block, now = Date.now()) {
+    const p = block?.position;
+    if (!p) return 0;
+    const me = bot?.entity?.position;
+    for (const a of dangerZones(bot, now)) {
+        const d = Math.hypot(p.x - a.x, p.z - a.z);
+        if (d > a.radius) continue;
+        const mine = me ? Math.hypot(me.x - a.x, me.z - a.z) : Infinity;
+        if (mine <= a.radius && d >= mine - 1) continue;
+        return 200;
+    }
+    return 0;
 }

@@ -66,13 +66,16 @@ export function parseTip(text) {
     if (/^(was|welche\s+tipps)\s+(hast\s+du\s+(gelernt|dir\s+gemerkt)|kennst\s+du)/i.test(t) || /^was\s+hast\s+du\s+(alles\s+)?gelernt/i.test(t)) return {kind: 'list'};
     if ((m = /^vergiss\s+(das|den\s+tipp|die\s+regel)\s+(mit|über|ueber|zu)\s+(.+)/i.exec(t))) return {kind: 'forget', about: m[3].replace(/[.!?]+$/, '')};
     if ((m = /^(tipp|hinweis|regel)\s*[:\-]\s*(.+)/i.exec(t))) return {kind: 'tip', text: m[2]};
-    if ((m = /^merk\s+dir[,:]?\s+(.+)/i.exec(t))) return {kind: 'tip', text: m[1]};
+    // live test by HiImCheeZy 18.11.: "kannst du dir merken dass ...", "Merk dir dabei dass ..."
+    if ((m = /^(merk|merke)\s+dir[,:]?\s+(.+)/i.exec(t))) return {kind: 'tip', text: m[2]};
+    if ((m = /^(kannst|könntest|koenntest)\s+du\s+dir\s+(bitte\s+)?merken[,:]?\s+(.+)/i.exec(t))) return {kind: 'tip', text: m[3].replace(/[?]+$/, '')};
     if ((m = /^(mach|machs|mach\s+es)\s+(das\s+)?(nächstes|naechstes)\s+mal\s+(so|besser|anders)?[,:]?\s*(.+)/i.exec(t))) return {kind: 'tip', text: m[5]};
-    return null;
+    // "... aber kannst du das nächste mal wenn du Bäume fällst die Erde wieder entfernen?" (HiImCheeZy, 18.11.)
+    if ((m = /\b(kannst|könntest|koenntest)\s+du\s+(das\s+|beim\s+)?(nächste|naechste|nächstes|naechstes)\s+mal[,:]?\s+(.+)/i.exec(t))) return {kind: 'tip', text: m[4].replace(/[?]+$/, '')};    return null;
 }
 
 /** Short rule from the tip: one sentence, at most 140 characters. */
-export const ruleText = text => String(text).replace(/\s+/g, ' ').trim().replace(/^(dass|das)\s+/i, '').split(/(?<=[.!?])\s/)[0].slice(0, 140);
+export const ruleText = text => String(text).replace(/\s+/g, ' ').trim().replace(/^((dabei|auch|bitte|noch|mal|immer)\s+)*(dass|das)\s+/i, '').split(/(?<=[.!?])\s/)[0].slice(0, 200);
 
 export function addRule(name, text, by, now = Date.now()) {
     const d = load(name);

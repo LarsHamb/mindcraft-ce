@@ -3,7 +3,9 @@ import CommandProperty from "../property.js";
 import * as skills from "../../library/skills.js";
 import { toolResult } from "../../tool_result.js";
 import Vec3 from "vec3";
-import { protectedAreaAt } from "../../library/protection.js";
+import { protectedAreaAt, getHome } from "../../library/protection.js";
+import { wildShelterAllowed } from "../../library/raid.js";
+import * as mc from "../../../utils/mcdata.js";
 
 // One tool call builds a whole small shelter (walls, roof, door gap) and verifies it afterwards.
 // Before this, the model placed every block with its own placeBlockAt request (~6-7k tokens each).
@@ -82,6 +84,13 @@ class BuildShelterTool extends BaseTool {
         width = clamp(width, 2, 5, 3); depth = clamp(depth, 2, 5, 3); height = clamp(height, 2, 4, 3);
         const actionFn = async () => {
             const bot = agent.bot;
+            // Lars, 18.11.: no bunkers in the wild when he has a home, except in a real emergency
+            const home = getHome(bot), ref = home?.bed || home?.bell, me0 = bot.entity.position;
+            const homeDist = ref ? Math.round(Math.hypot(me0.x - ref.x, me0.z - ref.z)) : Infinity;
+            const hostileNear = Object.values(bot.entities || {}).some(e => e?.position && mc.isHostile(e) && e.position.distanceTo(me0) < 12);
+            const armored = [5, 6, 7, 8].filter(i => bot.inventory.slots[i]).length >= 2;
+            if (!wildShelterAllowed({hasHome: !!ref, homeDist, time: bot.time?.timeOfDay, health: bot.health, hostileNear, armored}))
+                return toolResult('blocked', `You have a home in the village ${homeDist} blocks away: walk home (goToRememberedPlace zuhause) instead of building a bunker out here. Only in a real emergency (badly hurt, monsters right at you, far away at night without armor) build one.`, 'go_home');
             const p = [x, y, z].every(Number.isFinite) ? new Vec3(Math.floor(x), Math.floor(y), Math.floor(z)) : bot.entity.position.floored();
             const plan = planShelter(p, width, depth, height);
             const targets = [...plan.walls, ...plan.roof];
