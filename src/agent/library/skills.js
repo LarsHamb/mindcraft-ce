@@ -1093,23 +1093,27 @@ export async function takeFromChest(bot, itemName, num=-1) {
      * **/
     // foreign chests inside protected areas (village, player bases) are not ours to take from
     const chests = world.getNearestBlocks(bot, 'chest', 32, 16);
-    let chest = chests.find(c => isOwnBlock(bot, c.position, c.name) || !protectedAreaAt(bot, c.position));
-    if (!chest) {
+    const own = chests.filter(c => isOwnBlock(bot, c.position, c.name) || !protectedAreaAt(bot, c.position));
+    if (!own.length) {
         log(bot, chests.length ? `The chests nearby belong to others (protected area): do not take from them.` : `Could not find a chest nearby.`);
         return false;
     }
-    await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
-    const chestContainer = await openChest(bot, chest);
-    if (!chestContainer) return false;
-    
-    // Find all matching items in the chest
-    let matchingItems = chestContainer.containerItems().filter(item => item.name === itemName);
-    if (matchingItems.length === 0) {
-        log(bot, `Could not find any ${itemName} in the chest.`);
-        await chestContainer.close();
+    // sand test 18.11.: viewChest showed a village chest, takeFromChest used its own one next to it, and it
+    // tried the same items for 50 minutes. Now it looks through up to 3 of its own chests for the item.
+    let chestContainer = null, matchingItems = [], chest = null;
+    for (const c of own.slice(0, 3)) {
+        await goToPosition(bot, c.position.x, c.position.y, c.position.z, 2);
+        const container = await openChest(bot, c);
+        if (!container) continue;
+        const found = container.containerItems().filter(item => item.name === itemName);
+        if (found.length) { chestContainer = container; matchingItems = found; chest = c; break; }
+        await container.close();
+    }
+    if (!chestContainer) {
+        log(bot, `Could not find any ${itemName} in your chest${own.length > 1 ? `s (${own.slice(0, 3).map(c => c.position).join(', ')})` : ` at ${own[0].position}`}.`);
         return false;
     }
-    
+
     let totalAvailable = matchingItems.reduce((sum, item) => sum + item.count, 0);
     let remaining = num === -1 ? totalAvailable : Math.min(num, totalAvailable);
     let totalTaken = 0;
@@ -1139,20 +1143,23 @@ export async function viewChest(bot) {
      * @example
      * await skills.viewChest(bot);
      * **/
-    let chest = world.getNearestBlock(bot, 'chest', 32);
+    // the same chest takeFromChest uses: its own first; a foreign one only to look at
+    const chests = world.getNearestBlocks(bot, 'chest', 32, 16);
+    const chest = chests.find(c => isOwnBlock(bot, c.position, c.name) || !protectedAreaAt(bot, c.position)) || chests[0];
     if (!chest) {
         log(bot, `Could not find a chest nearby.`);
         return false;
     }
+    const foreign = !(isOwnBlock(bot, chest.position, chest.name) || !protectedAreaAt(bot, chest.position));
     await goToPosition(bot, chest.position.x, chest.position.y, chest.position.z, 2);
     const chestContainer = await openChest(bot, chest);
     if (!chestContainer) return false;
     let items = chestContainer.containerItems();
     if (items.length === 0) {
-        log(bot, `The chest is empty.`);
+        log(bot, `The chest at ${chest.position} is empty.`);
     }
     else {
-        log(bot, `The chest contains:`);
+        log(bot, foreign ? `The chest at ${chest.position} belongs to others (look only, do not take) and contains:` : `Your chest at ${chest.position} contains:`);
         for (let item of items) {
             log(bot, `${item.count} ${item.name}`);
         }
@@ -1262,53 +1269,39 @@ export async function giveToPlayer(bot, itemType, username, num=1) {
     }
     await goToPlayer(bot, username, 3);
     // if we are 2 below the player
-    log(bot, bot.entity.position.y, player.position.y);
     if (bot.entity.position.y < player.position.y - 1) {
         await goToPlayer(bot, username, 1);
     }
-    // if we are too close, make some distance
-    if (bot.entity.position.distanceTo(player.position) < 2) {
-        let too_close = true;
-        let start_moving_away = Date.now();
-        await moveAwayFromEntity(bot, player, 2);
-        while (too_close && !bot.interrupt_code) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            too_close = bot.entity.position.distanceTo(player.position) < 5;
-            if (too_close) {
-                await moveAwayFromEntity(bot, player, 5);
-            }
-            if (Date.now() - start_moving_away > 3000) {
-                break;
-            }
-        }
-        if (too_close) {
-            log(bot, `Failed to give ${itemType} to ${username}, too close.`);
-            return false;
-        }
+    // sand test 18.11.: it threw from 5 blocks away, the stacks landed short of the player, the 3 s wait ended
+    // before the 2 s pickup delay was over, and it collected its own stacks again (4 times, 128 sand).
+    // Now: throw from 2-3 blocks at chest height and wait up to 7 s, counting what the player picks up.
+    if (bot.entity.position.distanceTo(player.position) < 1.6) {
+        await moveAwayFromEntity(bot, player, 2.5);
     }
-
-    await bot.lookAt(player.position);
-    if (await discard(bot, itemType, num)) {
-        let given = false;
-        bot.once('playerCollect', (collector, collected) => {
-            console.log(collected.name);
-            if (collector.username === username) {
-                log(bot, `${username} received ${itemType}.`);
-                given = true;
+    if (bot.entity.position.distanceTo(player.position) > 3.5) {
+        await goToPlayer(bot, username, 2);
+    }
+    await bot.lookAt(player.position.offset(0, 1.2, 0));
+    let received = 0;
+    const onCollect = (collector, collected) => {
+        if (collector?.username !== username) return;
+        const item = collected?.getDroppedItem?.();
+        if (!item || item.name === itemType) received += item?.count || 1;
+    };
+    bot.on('playerCollect', onCollect);
+    try {
+        if (await discard(bot, itemType, num)) {
+            const start = Date.now();
+            while (!bot.interrupt_code && received < num && Date.now() - start < 7000) {
+                await new Promise(resolve => setTimeout(resolve, 250));
             }
-        });
-        let start = Date.now();
-        while (!given && !bot.interrupt_code) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            if (given) {
+            if (received > 0) {
+                log(bot, `${username} received ${Math.min(received, num)} ${itemType}.`);
                 return true;
             }
-            if (Date.now() - start > 3000) {
-                break;
-            }
         }
-    }
-    log(bot, `Failed to give ${itemType} to ${username}, it was never received.`);
+    } finally { bot.removeListener('playerCollect', onCollect); }
+    log(bot, `${itemType} lies at ${username}'s feet but they did not pick it up within 7 s: ask them to walk over it instead of picking it up again yourself.`);
     return false;
 }
 

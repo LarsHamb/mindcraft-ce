@@ -44,6 +44,7 @@ python3 "$HOME/mindcraft-ce/npc/patch_attack_order.py" mineflayer/lib/plugins/en
 mkdir -p mineflayer-pathfinder
 docker run --rm mindcraft-ce-test cat /app/node_modules/mineflayer-pathfinder/index.js > mineflayer-pathfinder/index.js
 python3 "$HOME/mindcraft-ce/npc/patch_pathfinder_tower.py" mineflayer-pathfinder/index.js
+python3 "$HOME/mindcraft-ce/npc/patch_pathfinder_dig.py" mineflayer-pathfinder/index.js
 cat > "$B/Dockerfile" <<'EOF'
 FROM mindcraft-ce-test
 RUN rm -rf /app/node_modules/mineflayer /app/node_modules/minecraft-data /app/node_modules/minecraft-data-base

@@ -228,7 +228,12 @@ const modes_list = [
             const limit = (slow ? 45 : this.max_stuck_time) * 1000;
             if (!agent.actions.progress || agent.actions.progress.healthy(limit)) return;
             say(agent, 'I\'m stuck!');
-            journal('stuck', {action: agent.actions.currentActionLabel}, bot);
+            // test 18.11.: stuck for 20 minutes in shallow water next to a sand bank; the state says why
+            const pf = bot.pathfinder;
+            journal('stuck', {action: agent.actions.currentActionLabel, mining: pf?.isMining?.(), building: pf?.isBuilding?.(),
+                moving: pf?.isMoving?.(), goal: pf?.goal?.constructor?.name || null, dig: bot.targetDigBlock?.name || null,
+                controls: Object.entries(bot.controlState || {}).filter(([, v]) => v).map(([k]) => k).join(','),
+                ground: bot.entity?.onGround, water: bot.entity?.isInWater, progress: String(agent.actions.progress?.message || "").slice(0, 80)}, bot);
             execute(this, agent, async () => {
                 await skills.moveAway(bot, 3);
                 say(agent, 'Trying another approach.');
@@ -444,7 +449,13 @@ const modes_list = [
             const t = bot.time?.timeOfDay, day = bot.time?.day;
             if (Number.isFinite(t) && t >= 11000 && t < 12500 && day !== this.duskDay) {
                 this.duskDay = day;
-                if (getHome(bot)?.bed) wake('Night falls in about a minute. Go home to your village bed and sleep there (village sleep). Fighting creepers at night in the open is not a plan.');
+                const bed = getHome(bot)?.bed, me = bot.entity?.position;
+                const far = bed && me ? Math.round(Math.hypot(me.x - bed.x, me.z - bed.z)) : 0;
+                const armored = [5, 6, 7, 8].filter(i => bot.inventory.slots[i]).length >= 2;
+                // sand test 18.11.: at dusk it dropped a player's job (108 of 128 sand) to walk 270 blocks home to bed
+                if (bed && far > 80 && armored) wake(`Night falls in about a minute. Your village bed is ${far} blocks away. If you are on a job for a player, finish it here carefully (you are armored; torches around you, fight only with a clear path), then go home. Without a job, go home and sleep (village sleep).`);
+                else if (bed && far > 80) wake(`Night falls in about a minute. Your village bed is ${far} blocks away, too far to reach before dark without armor: build a shelter here (buildShelter) or dig in, and keep the player's job for the morning.`);
+                else if (bed) wake('Night falls in about a minute. Go home to your village bed and sleep there (village sleep). Fighting creepers at night in the open is not a plan.');
                 else wake('Night falls in about a minute. Go to your shelter, or build one now with buildShelter, or dig in; put torches around it. Do not stay in the open. If you have a bed at your base, sleep in it (goToBed): that also sets your respawn point there.');
             }
         }
