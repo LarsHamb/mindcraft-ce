@@ -182,7 +182,7 @@ export class TaskAgent {
                 }
                 await this.agent.history?.save();
                 if(handoff) return {...handoff,steps:step,usedTool};
-                if(executed>=callLimit) return {chat_response:"I'm having trouble finishing this. Could you give me a smaller next step?",steps:step,work_done:false,usedTool};
+                if(executed>=callLimit) return {chat_response:"Das klappt gerade nicht. Gib mir bitte einen kleineren Schritt.",steps:step,work_done:false,usedTool};
                 if(!calls.length) {
                     if(conversation) return {chat_response:visible,steps:step,work_done:true,usedTool};
                     if(parsed?.work_done===true) return {chat_response:visible,steps:step,work_done:true,usedTool};
@@ -192,11 +192,11 @@ export class TaskAgent {
                         if(status==='done') return {chat_response:visible,steps:step,work_done:true,usedTool};
                         if(status==='blocked') return {chat_response:visible||'Task blocked.',steps:step,work_done:false,blocked:true,usedTool};
                     }
-                    if(noTools>=3) return {chat_response:"I'm not making progress with this approach. Could you give me a smaller next step?",steps:step,work_done:false,blocked:true,usedTool};
+                    if(noTools>=3) return {chat_response:"So komme ich nicht weiter. Gib mir bitte einen kleineren Schritt.",steps:step,work_done:false,blocked:true,usedTool};
                     history.push({role:'user',content:'Continue the next concrete step with native tools, or call taskDone/taskBlocked with evidence.'});
                 } else noTools=0;
             }
-            return {chat_response:this.cancelJob||shouldInterrupt()?'':"I'm having trouble finishing this. Could you give me a smaller next step?",steps:this.currentStep,work_done:false,usedTool};
+            return {chat_response:this.cancelJob||shouldInterrupt()?'':"Das klappt gerade nicht. Gib mir bitte einen kleineren Schritt.",steps:this.currentStep,work_done:false,usedTool};
         } catch(error) {
             if(this.cancelJob||shouldInterrupt()) return {chat_response:'',steps:this.currentStep,work_done:false,usedTool};
             throw error;

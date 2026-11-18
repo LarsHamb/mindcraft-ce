@@ -10,6 +10,7 @@ import { ripeCrops, CROPS } from "./harvestField.js";
 import { currentCharacter } from "../../library/characters.js";
 import settings from "../../settings.js";
 import Vec3 from "vec3";
+import pf from "mineflayer-pathfinder";
 
 // Lars, 17.11.: "ein Dorfbewohner auf Crack". He moves into a free bed of a village, sleeps there and keeps
 // the village nice. Rule "Pflegen, nicht umbauen": harvest and replant, torches, fill holes, own chest only.
@@ -24,16 +25,59 @@ async function reachVillage(bot, center) {
     return d > 24 ? toolResult('failed', `Could not reach my village at ${fmt(center)} (still ${d} blocks away). Walk there first: goToRememberedPlace dorf.`, 'move_failed') : null;
 }
 
+/** Walk a long way in legs of at most 40 blocks (one long path times out on 26.3). */
+async function walkFar(bot, target) {
+    for (let leg = 0; leg < 30 && !bot.interrupt_code; leg++) {
+        const me = bot.entity.position, far = Math.hypot(target.x - me.x, target.z - me.z);
+        if (far <= 12) return true;
+        const k = Math.min(1, 36 / far);
+        const x = Math.floor(me.x + (target.x - me.x) * k), z = Math.floor(me.z + (target.z - me.z) * k);
+        try { await skills.goToGoal(bot, new pf.goals.GoalNearXZ(x, z, 3)); } catch {}
+        if (bot.entity.position.distanceTo(me) < 2) return false; // no progress on this leg
+    }
+    return Math.hypot(target.x - bot.entity.position.x, target.z - bot.entity.position.z) <= 12;
+}
+
 async function moveIn(agent) {
     const bot = agent.bot;
-    const v = findVillage(bot);
+    let v = findVillage(bot);
+    // live 18.11.: "no village" and then walking off the wrong way. A known village (settings.village_hint,
+    // set from /locate) is walked to first.
+    const hint = settings.village_hint;
+    if (!v && hint && Number.isFinite(hint.x) && Number.isFinite(hint.z)) {
+        await walkFar(bot, hint);
+        v = findVillage(bot, 64);
+        if (!v && Math.hypot(hint.x - bot.entity.position.x, hint.z - bot.entity.position.z) <= 24)
+            v = {center: new Vec3(Math.floor(hint.x), Math.floor(hint.y ?? bot.entity.position.y), Math.floor(hint.z)), by: 'hint'};
+        if (!v) return toolResult('failed', `Walked towards the known village at ${fmt(hint)} but did not get there (now ${fmt(bot.entity.position)}). Try village move_in again; it walks in short legs.`, 'move_failed');
+    }
     if (!v) return toolResult('blocked', 'No village within 128 blocks (no bell, no group of beds with villagers). Explore: walk about 200 blocks in one direction (plains, savanna, desert and taiga have villages), then call village move_in again.', 'no_village');
     const center = v.center;
     if (bot.entity.position.distanceTo(center) > 12) await skills.goToPosition(bot, center.x, center.y, center.z, 4);
-    const beds = bedsAround(bot, center), villagers = villagersAround(bot, center);
-    if (!beds.length) return toolResult('blocked', `Village at ${fmt(center)} found, but no bed in it.`, 'no_bed');
-    const pick = chooseFreeBed(beds, villagers, isNight(bot), center);
-    if (!pick) return toolResult('blocked', `All ${beds.length} beds in the village at ${fmt(center)} are taken tonight. Try again later or another village.`, 'no_free_bed');
+    // taiga villages are spread out: a bed 66 blocks from the bell (live 18.11.)
+    const beds = bedsAround(bot, center, 80), villagers = villagersAround(bot, center, 80);
+    let pick = beds.length ? chooseFreeBed(beds, villagers, isNight(bot), center) : null;
+    if (!pick) {
+        // no (free) bed: bring its own bed into the village, or live there without one for now
+        const own = bot.inventory.items().find(i => /_bed$/.test(i.name));
+        if (own) {
+            // home village first, so the protection rules let him put his own bed there
+            setHome(bot, {bell: {x: center.x, y: center.y, z: center.z}, bed: null, radius: VILLAGE_RADIUS, sure: false});
+            const me = bot.entity.position.floored();
+            for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [0, 2]]) {
+                if (await skills.placeBlock(bot, own.name, me.x + dx, me.y, me.z + dz).catch(() => false)) {
+                    const placed = bedsAround(bot, me, 4)[0];
+                    if (placed) { pick = {bed: placed, sure: true, note: 'my own bed, placed in the village'}; break; }
+                }
+            }
+        }
+        if (!pick) {
+            setHome(bot, {bell: {x: center.x, y: center.y, z: center.z}, bed: null, radius: VILLAGE_RADIUS, sure: false});
+            agent.memory_bank?.rememberPlace?.('dorf', center.x, center.y, center.z);
+            const why = beds.length ? `all ${beds.length} beds are taken` : 'it has no bed';
+            return toolResult('partial', `Moved into the village at ${fmt(center)} without a bed (${why}); remembered 'dorf'. Make a bed: 3 wool (shear or kill 3 sheep, or 4 string make 1 wool) + 3 planks at a crafting table, then village move_in again here to place it. Until then stay in the village at night (buildShelter next to the houses), do not walk away.`, 'no_bed');
+        }
+    }
     const bed = pick.bed.pos;
     if (!await skills.goToPosition(bot, bed.x, bed.y, bed.z, 2))
         return toolResult('failed', `Could not reach the free bed at ${fmt(bed)}.`, 'move_failed');

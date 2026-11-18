@@ -60,7 +60,7 @@ test('unknown tool categories are rejected before starting a Task',async t=>{
 test('Brain corrects malformed supervision calls boundedly and reports a final blocker',async t=>{
     const {system,said,counts}=setup(t,[turn(call('directTask',{objective:42})),turn(call('directTask',{objective:42})),turn(call('directTask',{objective:42}))]);
     await system.handleMessage('Player','Get wood');
-    assert.equal(counts().brainCalls,3);assert.equal(system.activeTask,null);assert.match(said.at(-1)[1],/couldn't work out/);
+    assert.equal(counts().brainCalls,3);assert.equal(system.activeTask,null);assert.match(said.at(-1)[1],/bekomme ich so nicht hin/);
     assert.ok(!said.at(-1)[1].includes('directTask'));
 });
 test('a plain stop cancels immediately without invoking the Brain or an optional decision model',async t=>{

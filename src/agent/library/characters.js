@@ -64,6 +64,18 @@ export function findCharacter(profile, text) {
 export function setCharacter(agent, id, by = 'chat', day = today()) {
     const profile = agent.prompter.profile;
     if (!profile?.characters?.[id]) return false;
+    // live 18.11.: the summarized memory mixed both roles ("CheesyNPC/alte Anja/Hmmbert"). Each character keeps
+    // its own summary; places (memory bank) and players (players.json) stay shared.
+    const old = currentCharacterId(profile, agent.name);
+    if (old !== id && agent.history) {
+        const f = `./bots/${agent.name}/memory-by-character.json`;
+        let all = {};
+        try { if (existsSync(f)) all = JSON.parse(readFileSync(f, 'utf8')); } catch { all = {}; }
+        all[old] = agent.history.memory || '';
+        agent.history.memory = all[id] || '';
+        try { writeFileSync(f, JSON.stringify(all, null, 1)); } catch (e) { console.warn('character memory:', e.message); }
+        agent.history.save?.().catch?.(() => {});
+    }
     saveCharacterState(agent.name, {id, display: profile.characters[id].display || id, at: Date.now(), day, by});
     console.log(`Character: now ${id} (${by})`);
     return true;

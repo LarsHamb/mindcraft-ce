@@ -499,6 +499,9 @@ export async function attackEntity(bot, entity, kill=true) {
     }
 }
 
+// hostile, not far above or below, and not a mob it just gave up on (no closer for 6 s)
+const fightable = (bot, e) => mc.isHostile(e) && Math.abs(e.position.y - bot.entity.position.y) <= 4 && !((bot.__ignoreMobs?.get(e.id) || 0) > Date.now());
+
 export async function defendSelf(bot, range=9) {
     assertActionOwner(bot);
     /**
@@ -512,7 +515,7 @@ export async function defendSelf(bot, range=9) {
     bot.modes.pause('self_defense');
     bot.modes.pause('cowardice');
     let attacked = false;
-    let enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), range);
+    let enemy = world.getNearestEntityWhere(bot, entity => fightable(bot, entity), range);
     if (combatStyle() !== 'basic') {
         // Lars, 18.11.: fight like a player (combat.js): cooldown, critical hits, shield, creeper step-back, retreat to eat
         let kills = 0, retreats = 0;
@@ -521,6 +524,7 @@ export async function defendSelf(bot, range=9) {
             await equipShield(bot);
             const r = await fight(bot, enemy);
             console.log(`fight ${enemy.name}: ${r} (health ${Math.round(bot.health)})`);
+            if (r === 'gone') (bot.__ignoreMobs ||= new Map()).set(enemy.id, Date.now() + 60000);
             attacked = true;
             if (r === 'killed') kills++;
             if (r === 'interrupted') return false;
@@ -530,7 +534,7 @@ export async function defendSelf(bot, range=9) {
                 await retreatAndEat(bot, near, () => eatBestFood(bot));
                 if (retreats >= 3) { log(bot, `Retreated ${retreats} times at low health: get away and heal before fighting again.`); return false; }
             }
-            enemy = world.getNearestEntityWhere(bot, entity => mc.isHostile(entity), range);
+            enemy = world.getNearestEntityWhere(bot, entity => fightable(bot, entity), range);
         }
         log(bot, attacked ? `Successfully defended self (${kills} killed).` : `No enemies nearby to defend self from.`);
         return attacked;
@@ -633,6 +637,8 @@ export async function tidyInventory(bot, minFree = 4) {
     for (const item of bot.inventory.items()) counts[item.name] = (counts[item.name] || 0) + item.count;
     for (const item of bot.inventory.items()) {
         if (bot.inventory.emptySlotCount() >= minFree + 2) break;
+        // gifts from players stay (10 minutes at least), whatever they are
+        if (Date.now() - (bot.__gifts?.get(item.name) || 0) < 10 * 60000) continue;
         const keep = JUNK_KEEP[item.name] ?? (/_(tulip|orchid|allium)$/.test(item.name) ? 0 : undefined);
         if (keep === undefined || counts[item.name] <= keep) continue;
         const n = Math.min(item.count, counts[item.name] - keep);
@@ -2286,13 +2292,83 @@ export async function goToSurface(bot) {
         if (!block || block.name === 'air' || block.name === 'cave_air' || /_leaves$|_log$/.test(block.name)) continue;
         if (y + 1 <= Math.floor(pos.y) + 1 && (bot.blockAt(pos.offset(0, 2, 0))?.skyLight ?? 0) > 0) { log(bot, 'Already at the surface.'); return true; }
         log(bot, `Going to the surface at y=${y+1}.`);
+        // live 18.11.: underground without a pickaxe the pathfinder cannot dig ("Cannot break stone with current
+        // tools") and he stayed for an hour. First make a pickaxe from what he carries, else dig stairs by hand.
+        if (!hasPickaxe(bot)) await makePickaxe(bot).catch(() => false);
         const think = bot.pathfinder.thinkTimeout;
         bot.pathfinder.thinkTimeout = Math.max(think || 0, 20000);
+        let error = null;
         try { await goToGoal(bot, new pf.goals.GoalY(y + 1)); }
+        catch (e) { error = e; }
         finally { bot.pathfinder.thinkTimeout = think; }
-        return Math.floor(bot.entity.position.y) >= y;
+        if (Math.floor(bot.entity.position.y) >= y) return true;
+        if (bot.interrupt_code) return false;
+        log(bot, `Pathfinder could not get up (${error?.message || 'no progress'}): digging a staircase up by hand.`);
+        return await handStairsUp(bot, y);
     }
     return false;
+}
+
+const hasPickaxe = bot => bot.inventory.items().some(i => /_pickaxe$/.test(i.name));
+const countOf = (bot, re) => bot.inventory.items().filter(i => re.test(i.name)).reduce((n, i) => n + i.count, 0);
+
+/** Craft a pickaxe from what is in the inventory: logs -> planks -> sticks (+ table) -> stone or wooden pickaxe. */
+export async function makePickaxe(bot) {
+    assertActionOwner(bot);
+    if (hasPickaxe(bot)) return true;
+    const cobble = countOf(bot, /^(cobblestone|cobbled_deepslate|blackstone)$/) >= 3;
+    const needPlanks = (countOf(bot, /^stick$/) >= 2 ? 0 : 2) + (cobble ? 0 : 3) + (countOf(bot, /^crafting_table$/) ? 0 : 4);
+    for (let i = 0; i < 4 && countOf(bot, /_planks$/) < needPlanks; i++) {
+        const wood = bot.inventory.items().find(it => /_(log|stem)$/.test(it.name) && !/^stripped_/.test(it.name));
+        if (!wood) break;
+        await craftRecipe(bot, wood.name.replace(/_(log|stem)$/, '_planks'), 1);
+    }
+    if (countOf(bot, /^stick$/) < 2) await craftRecipe(bot, 'stick', 1);
+    const ok = cobble ? await craftRecipe(bot, 'stone_pickaxe', 1) : await craftRecipe(bot, 'wooden_pickaxe', 1);
+    if (!hasPickaxe(bot)) { log(bot, 'Could not make a pickaxe from the inventory (needs 2 logs, or planks and sticks).'); return false; }
+    return ok;
+}
+
+/**
+ * Dig a staircase up by hand (no tool needed, slower): break the blocks ahead and above, put a block where the
+ * step is missing, step up. Avoids lava and water, turns at bedrock. Stops at open sky or at targetY.
+ */
+export async function handStairsUp(bot, targetY = 320, maxSteps = 80) {
+    assertActionOwner(bot);
+    const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    const fluid = q => /lava|water/.test(bot.blockAt(q)?.name || '');
+    const nearFluid = q => [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, -1]].some(([a, b, c]) => fluid(q.offset(a, b, c)));
+    const solid = q => bot.blockAt(q)?.boundingBox === 'block';
+    let d = 0, turns = 0, steps = 0;
+    const startY = Math.floor(bot.entity.position.y);
+    while (steps < maxSteps && !bot.interrupt_code) {
+        const p = bot.entity.position.floored();
+        if (p.y >= targetY || (p.y > startY && (bot.blockAt(p.offset(0, 1, 0))?.skyLight ?? 0) >= 8)) break;
+        const [dx, dz] = dirs[d];
+        const fwd = p.offset(dx, 0, dz), step = fwd.offset(0, 1, 0), stepHead = fwd.offset(0, 2, 0), head2 = p.offset(0, 2, 0);
+        const blocked = [head2, stepHead, step].some(q => nearFluid(q) || bot.blockAt(q)?.name === 'bedrock');
+        if (blocked) { d = (d + 1) % 4; if (++turns > 4) break; continue; }
+        turns = 0;
+        try {
+            for (const q of [head2, stepHead, step]) if (solid(q)) await bot.dig(bot.blockAt(q), true);
+            if (!solid(fwd)) {
+                const fill = bot.inventory.items().find(i => /^(cobblestone|cobbled_deepslate|dirt|netherrack|stone|deepslate|andesite|diorite|granite|tuff)$/.test(i.name));
+                if (!fill || !await placeBlock(bot, fill.name, fwd.x, fwd.y, fwd.z)) { d = (d + 1) % 4; continue; }
+            }
+            await bot.lookAt(step.offset(0.5, 1.6, 0.5), true);
+            bot.setControlState('forward', true); bot.setControlState('jump', true);
+            const until = Date.now() + 1500;
+            while (Date.now() < until && !bot.entity.position.floored().equals(step)) await new Promise(r => setTimeout(r, 50));
+        } catch (e) {
+            log(bot, `Stair step failed: ${e.message}`);
+            d = (d + 1) % 4;
+        } finally { bot.setControlState('forward', false); bot.setControlState('jump', false); }
+        if (bot.entity.position.floored().y > p.y) steps++;
+    }
+    const up = Math.floor(bot.entity.position.y) - startY;
+    const sky = (bot.blockAt(bot.entity.position.floored().offset(0, 1, 0))?.skyLight ?? 0) >= 8;
+    log(bot, sky || Math.floor(bot.entity.position.y) >= targetY ? `Dug stairs ${up} blocks up by hand and reached the surface.` : `Dug stairs ${up} blocks up by hand, not at the surface yet; call goToSurface again.`);
+    return sky || Math.floor(bot.entity.position.y) >= targetY;
 }
 
 export async function useToolOn(bot, toolName, targetName) {

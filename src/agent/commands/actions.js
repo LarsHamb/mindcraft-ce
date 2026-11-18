@@ -350,6 +350,16 @@ export const actionsList = [
         description: 'Stay in the current location no matter what. Pauses all modes.',
         params: {'type': { type: 'int', description: 'The number of seconds to stay. -1 for forever.', domain: [-1, Number.MAX_SAFE_INTEGER] }},
         perform: runAsAction(async (agent, seconds) => {
+            // live 18.11.: stuck underground it called stay 60 every 90 s for 20 minutes. Staying in the same
+            // spot over and over is not a plan: after 3 stays there in 15 minutes it is refused.
+            const bot = agent.bot, here = bot.entity.position.floored();
+            const now = Date.now();
+            agent.__stays = (agent.__stays || []).filter(s => now - s.at < 15 * 60000 && s.pos.distanceTo(here) < 4);
+            if (agent.__stays.length >= 3) {
+                skills.log(bot, `Already stayed here ${agent.__stays.length} times in 15 minutes without getting anywhere. Do not stay again: solve it (goToSurface digs stairs up by hand, makePickaxe from logs or planks, or walk to the village).`);
+                return false;
+            }
+            agent.__stays.push({at: now, pos: here});
             return await skills.stay(agent.bot, seconds);
         })
     },

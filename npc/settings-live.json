@@ -1,5 +1,6 @@
 {
  "voice_port": 8091,
+ "village_hint": {"x": 25, "y": 113, "z": 723},
  "auto_open_ui": false,
  "host": "192.168.178.80",
  "port": 11116,

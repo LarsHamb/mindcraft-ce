@@ -146,6 +146,11 @@ export function villageCare(bot, target, heldName) {
     // Lars, 17.11.: as village chief he may add NEW buildings in the village style (tower, fence), never touching
     // existing ones: no foreign building block within 2 blocks, not on paths, fields or crops.
     if (NEW_BUILD.test(heldName) && newBuildSpot(bot, target)) return 'new build';
+    // live 18.11.: a village without a free bed - he may set up his own bed there while he has none
+    if (/_bed$/.test(heldName) && !state(bot).home?.bed) {
+        const below = bot.blockAt(target.offset(0, -1, 0));
+        if (below && !/^(dirt_path|farmland)$|wheat|carrots|potatoes|beetroots|_bed$|^bell$/.test(below.name)) return 'own bed';
+    }
     return null;
 }
 

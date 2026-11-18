@@ -8,6 +8,8 @@
 //                 name of the admin
 // He reacts with one short line in character (rate limited) and never attacks a player because of it.
 import settings from '../settings.js';
+import { journal } from '../journal.js';
+const journalToss = (data, bot) => journal('toss', data, bot);
 import { inHomeHouse, inHomeVillage } from './protection.js';
 import { noteExperience, refusesTasks, trustOf, TRUST_REFUSE } from './player_memory.js';
 
@@ -157,6 +159,8 @@ export function installReputation(agent) {
             if (!item) return;
             const g = pendingGift.get(t.who) || {items: {}, timer: null};
             g.items[item.name] = (g.items[item.name] || 0) + item.count;
+            // a gift is never thrown away as junk (tidyInventory), at least for 10 minutes
+            (bot.__gifts ||= new Map()).set(item.name, Date.now());
             clearTimeout(g.timer);
             // a handful of items thrown one after another is one gift
             g.timer = setTimeout(() => {
@@ -164,11 +168,25 @@ export function installReputation(agent) {
                 const what = itemsText(g.items);
                 const tr = noteExperience(name(), t.who, `schenkte dir ${what}`, giftDelta(t.who, giftValue(g.items)));
                 console.log(`Reputation: gift from ${t.who}: ${what} -> ${tr}`);
-                wake('gift', t.who, `Social: ${t.who} just threw you a gift: ${what}. Thank them briefly in character. One line.`);
+                wake('gift', t.who, `Social: ${t.who} just threw you a gift: ${what}. You picked it up and keep it. Thank them once, briefly, in character; if you asked them for it before, say so ("danke fuer das ..."). One line.`);
             }, 4000);
             pendingGift.set(t.who, g);
         } catch {}
     });
+
+    // live 18.11.: "sie hat es 5-mal direkt wieder weggeschmissen" - every item he throws goes into the journal
+    // with the running action, so the cause shows next time
+    for (const fn of ['toss', 'tossStack']) {
+        const orig = bot[fn]?.bind(bot);
+        if (!orig) continue;
+        bot[fn] = async (...args) => {
+            try {
+                const item = fn === 'toss' ? bot.registry?.items?.[args[0]]?.name : args[0]?.name;
+                journalToss?.({item, count: fn === 'toss' ? args[2] : args[0]?.count, action: agent.actions?.currentActionLabel || null}, bot);
+            } catch {}
+            return await orig(...args);
+        };
+    }
 
     // hits and arrows from players
     const swings = new Map();

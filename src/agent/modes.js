@@ -265,7 +265,11 @@ const modes_list = [
         update: async function (agent) {
             // well armed it also takes on skeletons and creepers further away (shield, bow)
             const strong = settings.combat_style !== 'basic' && canFight(agent.bot, Object.values(agent.bot.entities).filter(e => mc.isHostile(e) && e.position.distanceTo(agent.bot.entity.position) < 20));
-            const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity) && (entity.position.distanceTo(agent.bot.entity.position) <= 8
+            // live 18.11.: a creeper 10 blocks below the bunker gave 10 minutes of fight/stuck loop. Mobs far above or
+            // below, and mobs it just gave up on (no closer for 6 s), are left alone for a minute.
+            const me = agent.bot.entity.position, ignored = agent.bot.__ignoreMobs || new Map();
+            const enemy = world.getNearestEntityWhere(agent.bot, entity => mc.isHostile(entity) && Math.abs(entity.position.y - me.y) <= 4
+                && !((ignored.get(entity.id) || 0) > Date.now()) && (entity.position.distanceTo(agent.bot.entity.position) <= 8
                 || (strong && /^(skeleton|stray|bogged|parched|creeper|witch|phantom)$/.test(entity.name) && entity.position.distanceTo(agent.bot.entity.position) <= 16)), 16);
             // only with a clear path: a mob behind stone made an endless fight/unstuck loop deep down (test 18.11.)
             if (enemy && await world.isClearPath(agent.bot, enemy)) {

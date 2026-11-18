@@ -100,12 +100,12 @@ export class AgentSystem {
             if(errorText&&!this.currentDirective&&!interrupted()) {
                 if(attempt<2) return await this.assess(source,`Correct the reported supervision-tool errors or explain the blocker: ${errorText}`,interrupted,attempt+1,steps+1);
                 console.warn('Brain could not proceed:',errorText);
-                await this.say(source,"I couldn't work out how to do that. Could you give me a smaller next step?");
+                await this.say(source,"Das bekomme ich so nicht hin. Gib mir bitte einen kleineren Schritt.");
             }
             if(!errorText&&!terminal&&!interrupted()) {
                 if(steps+1<(settings.agent_max_steps??50))
                     return await this.assess(source,'Continue from these supervision-tool results. Assign concrete work, answer the player, or wait if no work remains.',interrupted,attempt,steps+1);
-                await this.say(source,"I'm having trouble finishing this. Could you give me a smaller next step?");
+                await this.say(source,"Das klappt gerade nicht. Gib mir bitte einen kleineren Schritt.");
             }
             return Boolean(this.currentDirective);
         }

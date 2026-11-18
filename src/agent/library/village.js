@@ -19,7 +19,9 @@ const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 
 /** Bed heads around center: [{pos, occupied}] (a bed is two blocks; the head carries the state). */
 export function bedsAround(bot, center, radius = VILLAGE_RADIUS) {
-    const found = bot.findBlocks({matching: b => !!b && /_bed$/.test(b.name), maxDistance: radius + 16, count: 128}) || [];
+    // live 18.11.: "Village at 25,113,723 found, but no bed in it" in a taiga village - the search ran around the
+    // bot, not around the village center. Now it searches around the center.
+    const found = bot.findBlocks({point: center, matching: b => !!b && /_bed$/.test(b.name), maxDistance: radius + 8, count: 128}) || [];
     const out = [];
     for (const p of found) {
         if (flat(p, center) > radius) continue;

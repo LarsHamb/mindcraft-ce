@@ -183,6 +183,10 @@ export class Agent {
         const respondFunc = async (username, message) => {
             if (message === "") return;
             if (username === this.name) return;
+            // live 18.11.: console "say" lines ([Server] ...) became player tasks: only real players give tasks
+            const players = this.bot?.players || {};
+            const isPlayer = !!players[username] || Object.values(players).some(p => String(p?.displayName ?? '').replace(/§./g, '').trim() === username);
+            if (/^(Server|Rcon|CONSOLE)$/i.test(username) || /^[@\[]/.test(username) || (Object.keys(players).length && !isPlayer)) { console.log('ignoring chat from', username, '(no player)'); return; }
             if (settings.only_chat_with.length > 0 && !settings.only_chat_with.includes(username)) return;
             try {
                 if (ignore_messages.some((m) => message.startsWith(m))) return;
