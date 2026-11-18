@@ -141,7 +141,7 @@ export function tipsPrompt(name) {
  */
 export function handleTipChat(agent, username, message) {
     const name = agent.name;
-    const names = [name, agent.bot?.username, 'Hmmbert', 'CheesyNPC', 'Anja', 'Dorfbewohner'];
+    const names = [name, agent.bot?.username, 'Hmmbert', 'CheesyNPC', 'Anja', 'Dorfbewohner', 'Egon'];
     const p = parseTip(stripAddress(message, names));
     if (!p) return false;
     const wake = msg => { try { agent.agentSystem?.wake?.('system', msg); } catch {} };

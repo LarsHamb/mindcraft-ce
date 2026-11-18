@@ -35,7 +35,7 @@ test('names are matched loosely', () => {
     assert.equal(findCharacter(profile, 'Anja'), 'anja');
     assert.equal(findCharacter(profile, 'anja momberger'), 'anja');
     assert.equal(findCharacter(profile, 'Dorfbewohner'), 'dorfbewohner');
-    assert.equal(findCharacter(profile, 'Hmmbert'), 'dorfbewohner');
+    assert.equal(findCharacter(profile, 'Egon'), 'dorfbewohner');
     assert.equal(findCharacter(profile, 'Kriegsminister'), null);
     assert.equal(findCharacter(profile, 'Bob'), null);
 });
