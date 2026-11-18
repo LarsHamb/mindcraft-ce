@@ -25,7 +25,9 @@ test('stash store keeps 8 food (raw goes first) and the best tool of each kind',
     assert.deepEqual(out.find(o => o.name === 'beef'), {name: 'beef', count: 4});
     assert.ok(!out.some(o => o.name === 'bread'));
     assert.ok(out.some(o => o.name === 'stone_pickaxe'));
-    assert.ok(!out.some(o => o.name === 'iron_pickaxe' || o.name === 'wooden_axe' || o.name === 'rotten_flesh'));
+    assert.ok(!out.some(o => o.name === 'iron_pickaxe' || o.name === 'wooden_axe'));
+    // loot like rotten flesh goes into the base chest too (18.11.)
+    assert.deepEqual(out.find(o => o.name === 'rotten_flesh'), {name: 'rotten_flesh', count: 9});
 });
 
 test('stash take refills food to 8 (cooked first) and brings only missing tool kinds', () => {

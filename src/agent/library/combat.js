@@ -58,7 +58,7 @@ function creeperDanger(bot, e) {
  * Fight one target until it is dead or gone, the bot is too hurt, or interrupted.
  * Returns 'killed' | 'gone' | 'retreat' | 'interrupted'.
  */
-export async function fight(bot, target, {lowHealth = 6, maxMs = 45000, isAlive = () => true, shield = true, crit = true} = {}) {
+export async function fight(bot, target, {lowHealth = 6, maxMs = 45000, isAlive = () => true, shield = false, crit = false, kite = true} = {}) {
     const melee = bot.heldItem && bot.heldItem.name !== 'bow' ? bot.heldItem : null;
     const weapon = melee?.name || '';
     const cd = cooldownMs(weapon);
@@ -116,8 +116,16 @@ export async function fight(bot, target, {lowHealth = 6, maxMs = 45000, isAlive 
                     lastHit = Date.now();
                     if (target.name === 'creeper') stepBack = Date.now() + 1500;
                 }
-            } else if (shield && !ready && d <= 3.2) {
-                raiseShield(bot, true); // block between hits
+            } else if (!ready && d <= 3.2) {
+                // test 18.11.: raising the shield between hits made the hits weak (0 kills); instead step back while
+                // the weapon recovers, so a group cannot hit all at once
+                if (shield) raiseShield(bot, true);
+                const crowd = Object.values(bot.entities).filter(e => e !== target && e.type === 'hostile' && e.position.distanceTo(bot.entity.position) < 4).length;
+                if (kite && (crowd > 0 || d < 1.8)) {
+                    bot.setControlState('back', true);
+                    await sleep(120);
+                    bot.setControlState('back', false);
+                }
             }
             await sleep(50);
         }
