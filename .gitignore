@@ -33,3 +33,5 @@ site/
 
 # Generated augments
 src/agent/commands/tools/augments/
+npc/libs/
+npc/cheesy-voice/target/
